@@ -5,6 +5,12 @@
 Navigateur Windows ultra-léger basé sur Chromium (moteur WebView2 d'Edge, déjà installé sur Windows).
 Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
 
+## Télécharger
+1. Prendre `flux.exe` dans la dernière [release](https://github.com/Julienlgn123/flux-browser/releases/latest).
+2. Le lancer : c'est un seul fichier, sans installation. Pour l'épingler : clic droit sur l'icône dans la barre des tâches › Épingler.
+
+Configuration requise : Windows 10 ou 11 (64 bits) avec le moteur WebView2, déjà présent sur Windows 11 et sur les Windows 10 à jour.
+
 ## Performance
 - **Onglets paresseux** : à la restauration de session, seul l'onglet actif charge sa page.
 - **Gestion mémoire automatique** des onglets cachés : mémoire réduite après 30 s, gel complet après 5 min, déchargement après 60 min (réglable). Les onglets qui jouent du son sont épargnés.
