@@ -72,3 +72,6 @@ Ctrl+T / Ctrl+W / Ctrl+Maj+T, Ctrl+L / Alt+D / F6, Ctrl+Tab, Ctrl+1…9, F5, F12
 cargo build --release
 ```
 Binaire : `target/release/flux.exe` (installé dans `%LOCALAPPDATA%\Programs\Flux`). Données : `%LOCALAPPDATA%\Flux`.
+
+## Licence
+MIT — voir [LICENSE](LICENSE).

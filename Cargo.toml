@@ -3,6 +3,7 @@ name = "flux"
 version = "1.0.0"
 edition = "2021"
 description = "Flux — navigateur léger basé sur Chromium (WebView2), axé performance"
+license = "MIT"
 
 [dependencies]
 tao = "0.37"
