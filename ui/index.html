@@ -1,22 +1,27 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <title>Flux</title>
 <style>
 :root {
-  --bg: #18181b; --bar: #202024; --tab: #2a2a2f; --tab-h: #323238; --line: #34343a;
-  --fg: #ececf1; --dim: #9a9aa5; --accent: #ff5b2e; --accent-bg: #ff5b2e1f; --ok: #5fd39b;
+  --accent: #ff5b2e; --accent-bg: #ff5b2e22; --ok: #2fbf7a; --warn: #e5a100;
+  --tabs-h: 36px; --bar-h: 42px; --top: calc(var(--tabs-h) + var(--bar-h));
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
+[data-theme=dark] { --bg: #18181b; --bar: #202024; --tab: #2a2a2f; --tab-h: #323238; --line: #34343a; --fg: #ececf1; --dim: #9a9aa5; --field: #141417; }
+[data-theme=light] { --bg: #ececef; --bar: #f8f8fa; --tab: #e0e0e5; --tab-h: #d6d6dc; --line: #dcdce2; --fg: #18181b; --dim: #6b6b76; --field: #ffffff; }
+[data-density=compact] { --tabs-h: 30px; --bar-h: 36px; }
+[data-density=comfort] { --tabs-h: 40px; --bar-h: 48px; }
 * { box-sizing: border-box; margin: 0; }
 html, body { height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.3 var(--font); overflow: hidden; user-select: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: default; }
 svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.hidden { display: none !important; }
 
 /* Onglets */
-#tabs { height: 36px; display: flex; align-items: flex-end; gap: 2px; padding: 0 6px; background: var(--bg); }
-.tab { flex: 0 1 220px; min-width: 36px; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 10px;
+#tabs { height: var(--tabs-h); display: flex; align-items: flex-end; gap: 2px; padding: 0 6px; background: var(--bg); }
+.tab { flex: 0 1 220px; min-width: 36px; height: calc(var(--tabs-h) - 6px); display: flex; align-items: center; gap: 8px; padding: 0 6px 0 10px;
   border-radius: 8px 8px 0 0; color: var(--dim); overflow: hidden; }
 .tab:hover { background: var(--tab); }
 .tab.on { background: var(--bar); color: var(--fg); }
@@ -35,20 +40,21 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 #newtab:hover { background: var(--tab); color: var(--fg); }
 
 /* Barre d'adresse */
-#bar { height: 42px; display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--bar); border-bottom: 1px solid var(--line); }
+#bar { height: var(--bar-h); display: flex; align-items: center; gap: 4px; padding: 0 8px; background: var(--bar); border-bottom: 1px solid var(--line); }
 .ib { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; color: var(--dim); }
 .ib:hover { background: var(--tab-h); color: var(--fg); }
-#omni { flex: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; margin: 0 4px; border-radius: 15px; background: var(--bg); border: 1px solid transparent; }
-#omni:focus-within { border-color: var(--accent); background: #141417; }
+#omni { flex: 1; height: calc(var(--bar-h) - 12px); display: flex; align-items: center; gap: 8px; padding: 0 12px; margin: 0 4px; border-radius: 99px; background: var(--bg); border: 1px solid transparent; }
+#omni:focus-within { border-color: var(--accent); background: var(--field); }
 #omni svg { color: var(--dim); }
 #q { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--fg); font: 14px var(--font); user-select: text; }
-#q::selection { background: #ff5b2e55; }
+#q::selection { background: var(--accent-bg); }
 .pill { height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 9px; border-radius: 13px; color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pill:hover { background: var(--tab-h); color: var(--fg); }
 #shield.on { color: var(--ok); }
+#mem.limited { color: var(--warn); }
 
 /* Suggestions */
-#drop { position: absolute; left: 0; right: 0; top: 78px; background: var(--bar); border-bottom: 1px solid var(--line); padding: 4px 0 6px; display: none; box-shadow: 0 12px 24px #0008; }
+#drop { position: absolute; left: 0; right: 0; top: var(--top); background: var(--bar); border-bottom: 1px solid var(--line); padding: 4px 0 6px; display: none; box-shadow: 0 12px 24px #0006; }
 #drop.open { display: block; }
 .row { height: 34px; display: flex; align-items: center; gap: 12px; padding: 0 20px; margin: 0 8px; border-radius: 8px; }
 .row.sel { background: var(--accent-bg); }
@@ -59,7 +65,7 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .row kbd { margin-left: auto; color: var(--dim); font: 11px var(--font); }
 
 /* Nouvel onglet */
-#ntp { position: absolute; inset: 78px 0 0; display: none; flex-direction: column; align-items: center; padding-top: 14vh; gap: 28px; }
+#ntp { position: absolute; inset: var(--top) 0 0; display: none; flex-direction: column; align-items: center; padding-top: 14vh; gap: 28px; background-size: cover; background-position: center; }
 #ntp.show { display: flex; }
 #ntp h1 { display: flex; align-items: center; gap: 16px; font: 600 44px var(--font); letter-spacing: -1px; }
 #ntp h1 .logo { width: 38px; height: 48px; stroke: var(--accent); stroke-width: 76; }
@@ -71,120 +77,220 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .site .fav img { width: 24px; height: 24px; }
 .site span { max-width: 100%; color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Réglages */
-#settings { position: absolute; inset: 78px 0 0; background: var(--bg); display: none; justify-content: center; overflow: auto; padding: 32px 16px; }
-#settings.show { display: flex; }
-.panel { width: 560px; max-width: 100%; display: flex; flex-direction: column; gap: 4px; }
-.panel h2 { font: 600 22px var(--font); margin-bottom: 12px; }
-.panel h3 { color: var(--dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 6px; }
-.opt { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bar); border-radius: 10px; }
-.opt div { flex: 1; } .opt small { display: block; color: var(--dim); margin-top: 2px; }
-.opt select, .opt input[type=number] { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
-.opt input[type=number] { width: 70px; }
+/* Panneaux (réglages, moniteur) */
+.panel-wrap { position: absolute; inset: var(--top) 0 0; background: var(--bg); display: none; overflow: auto; }
+.panel-wrap.show { display: flex; }
+.side { width: 220px; flex: none; padding: 24px 12px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); position: sticky; top: 0; align-self: flex-start; }
+.side button { text-align: left; padding: 8px 12px; border-radius: 8px; color: var(--dim); }
+.side button:hover { background: var(--tab); color: var(--fg); }
+.side button.on { background: var(--accent-bg); color: var(--fg); }
+.content { flex: 1; padding: 28px 32px 60px; max-width: 860px; }
+.content h2 { font: 600 22px var(--font); margin-bottom: 6px; }
+.content > p { color: var(--dim); margin-bottom: 16px; }
+.content h3 { color: var(--dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin: 22px 0 8px; }
+.sec { display: none; flex-direction: column; gap: 4px; }
+.sec.on { display: flex; }
+.opt { display: flex; align-items: center; gap: 12px; padding: 11px 14px; background: var(--bar); border-radius: 10px; }
+.opt > div:first-child { flex: 1; } .opt small { display: block; color: var(--dim); margin-top: 2px; line-height: 1.4; }
+.opt select, .opt input[type=number], .opt input[type=text], .opt textarea { background: var(--field); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; font: inherit; user-select: text; }
+.opt input[type=number] { width: 80px; }
+.opt input[type=text] { width: 300px; }
+.opt textarea { width: 100%; min-height: 110px; font: 12px Consolas, monospace; resize: vertical; }
+.opt.col { flex-direction: column; align-items: stretch; }
 .opt input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
-.btn { padding: 7px 14px; border-radius: 7px; background: var(--tab); }
+.opt input[type=range] { width: 220px; accent-color: var(--accent); }
+.opt output { width: 90px; text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); }
+.btn { padding: 7px 14px; border-radius: 7px; background: var(--tab); white-space: nowrap; }
 .btn:hover { background: var(--tab-h); }
-#statline { color: var(--dim); font-variant-numeric: tabular-nums; }
+.btn.danger:hover { background: #d33c2e; color: #fff; }
+.swatches { display: flex; gap: 8px; align-items: center; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; }
+.sw.on { border-color: var(--fg); }
+#s-accent { width: 32px; height: 26px; border: 0; background: none; padding: 0; }
+.keycap { min-width: 180px; padding: 7px 12px; border-radius: 7px; background: var(--field); border: 1px solid var(--line); text-align: center; font-weight: 600; }
+.keycap.rec { border-color: var(--accent); color: var(--accent); }
+.status { font-size: 12px; } .status.ok { color: var(--ok); } .status.bad { color: #e5533d; }
+
+/* Moniteur */
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.card { background: var(--bar); border-radius: 12px; padding: 14px 16px 10px; }
+.card b { display: block; font: 600 24px var(--font); font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.card span { color: var(--dim); font-size: 12px; }
+.card canvas { width: 100%; height: 40px; display: block; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th { text-align: left; color: var(--dim); font-weight: 600; font-size: 12px; padding: 6px 10px; }
+td { padding: 8px 10px; border-top: 1px solid var(--line); white-space: nowrap; }
+td.title { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+td.num, th.num { text-align: right; }
+.state { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--tab); color: var(--dim); }
+.state.running { background: #2fbf7a22; color: var(--ok); }
+.mini { padding: 4px 9px; border-radius: 6px; background: var(--tab); font-size: 12px; }
+.mini:hover { background: var(--tab-h); }
+.mini[disabled] { opacity: .35; }
 </style>
+<style id="custom"></style>
 </head>
 <body>
 <div id="tabs"><button id="newtab" title="Nouvel onglet (Ctrl+T)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
 <div id="bar">
+  <span id="nav" style="display:contents">
   <button class="ib" id="back" title="Précédente (Alt+←)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
   <button class="ib" id="fwd" title="Suivante (Alt+→)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
-  <button class="ib" id="reload" title="Actualiser (F5)"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+  <button class="ib" id="reload" title="Actualiser (F5)"></button>
+  </span>
   <label id="omni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <input id="q" spellcheck="false" autocomplete="off" placeholder="Rechercher ou saisir une adresse"></label>
-  <button class="pill" id="mem" title="Mémoire totale du navigateur · onglets actifs/total"></button>
+  <button class="pill" id="mem" title="Consommation en temps réel — cliquer pour le moniteur">—</button>
   <button class="pill" id="shield" title="Pubs et traqueurs bloqués"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><b id="nblock">0</b></button>
-  <button class="ib" id="menu" title="Réglages"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  <button class="ib" id="menu" title="Réglages"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
 <div id="drop"></div>
-<div id="ntp"><h1><svg class="logo" viewBox="152 96 258 322"><path d="M190 380V210a76 76 0 0 1 76-76h106"/><path d="M278 266h70"/></svg>Flux</h1><p>Tapez pour chercher · <b>!yt</b>, <b>!w</b>, <b>!gh</b>… pour cibler un site</p><div id="sites"></div></div>
-<div id="settings"><div class="panel">
-  <h2>Réglages</h2>
-  <h3>Recherche</h3>
-  <label class="opt"><div>Moteur de recherche</div>
-    <select id="s-engine"><option value="google">Google</option><option value="duckduckgo">DuckDuckGo</option><option value="brave">Brave Search</option><option value="bing">Bing</option></select></label>
-  <label class="opt"><div>Suggestions en ligne<small>Envoie la frappe au moteur pour proposer des requêtes</small></div><input type="checkbox" id="s-suggestions"></label>
-  <h3>Performance</h3>
-  <label class="opt"><div>Geler les onglets inactifs après<small>CPU à zéro, mémoire compressée · les onglets qui jouent du son sont épargnés</small></div><input type="number" min="1" id="s-sleep_min"> min</label>
-  <label class="opt"><div>Décharger les onglets inactifs après<small>Libère toute leur mémoire, rechargés au clic · 0 = jamais</small></div><input type="number" min="0" id="s-discard_min"> min</label>
-  <label class="opt"><div>Mode éco<small>Limite à 3 processus de rendu · redémarrage requis</small></div><input type="checkbox" id="s-eco"></label>
-  <label class="opt"><div>Bloquer pubs et traqueurs<small>Pages plus légères et plus rapides à charger</small></div><input type="checkbox" id="s-blocker"></label>
-  <div class="opt"><div>Listes de filtrage<small>EasyList, EasyPrivacy, Liste FR, uBlock (filtres, vie privée, malveillants, correctifs), Peter Lowe · mises à jour toutes les 24 h</small><small id="filterstat">—</small></div><button class="btn" id="updfilters">Mettre à jour</button></div>
-  <h3>Données</h3>
-  <div class="opt"><div>Historique<small id="histcount"></small></div><button class="btn" id="clearhist">Effacer</button></div>
-  <h3>État</h3>
-  <div class="opt"><div id="statline">—</div></div>
+<div id="ntp"><h1><svg class="logo" viewBox="152 96 258 322"><path d="M190 380V210a76 76 0 0 1 76-76h106"/><path d="M278 266h70"/></svg>Flux</h1>
+  <p>Tapez pour chercher · <b>!yt</b>, <b>!w</b>, <b>!gh</b>… pour cibler un site · <b id="ntp-hotkey"></b> partout dans Windows</p><div id="sites"></div></div>
+
+<!-- Moniteur de consommation -->
+<div class="panel-wrap" id="monitor"><div class="content" style="max-width:1100px;margin:0 auto">
+  <h2>Consommation en temps réel</h2>
+  <p>Tout ce que Flux utilise : interface, moteur, onglets. Mise à jour chaque seconde.</p>
+  <div class="cards">
+    <div class="card"><span>Mémoire</span><b id="c-mem">—</b><canvas id="g-mem"></canvas></div>
+    <div class="card"><span>Processeur</span><b id="c-cpu">—</b><canvas id="g-cpu"></canvas></div>
+    <div class="card"><span>Réseau (réception)</span><b id="c-net">—</b><canvas id="g-net"></canvas></div>
+    <div class="card"><span>Requêtes bloquées</span><b id="c-block">—</b><canvas id="g-block"></canvas></div>
+  </div>
+  <h3>Limiteurs</h3>
+  <div class="opt"><div>Limite de mémoire<small>Au-delà, les onglets en arrière-plan inactifs depuis le plus longtemps sont déchargés.</small></div>
+    <input type="range" min="0" max="16384" step="256" data-k="ram_limit"><output data-o="ram_limit"></output></div>
+  <div class="opt"><div>Plafond processeur<small>Limite matérielle appliquée par Windows à tout le moteur du navigateur.</small></div>
+    <input type="range" min="0" max="100" step="5" data-k="cpu_limit"><output data-o="cpu_limit"></output></div>
+  <div class="opt"><div>Débit réseau maximal par onglet<small>Utile en partage de connexion ou pour laisser la bande passante à un jeu.</small></div>
+    <input type="range" min="0" max="20480" step="256" data-k="net_limit"><output data-o="net_limit"></output></div>
+  <div class="opt"><div>Geler les onglets inactifs après<small>Processeur à zéro, mémoire compressée. Les onglets qui jouent du son sont épargnés.</small></div><input type="number" min="1" data-k="sleep_min"> min</div>
+  <div class="opt"><div>Décharger les onglets inactifs après<small>Libère toute leur mémoire, rechargés au clic · 0 = jamais.</small></div><input type="number" min="0" data-k="discard_min"> min</div>
+  <h3>Onglets</h3>
+  <div class="opt col"><table><thead><tr><th>Onglet</th><th>État</th><th class="num">Mémoire</th><th class="num">Processeur</th><th class="num">Réseau</th><th></th></tr></thead><tbody id="m-tabs"></tbody></table></div>
+  <h3>Processus</h3>
+  <div class="opt col"><table><thead><tr><th>Type</th><th class="num">Nombre</th><th class="num">Mémoire</th><th class="num">Processeur</th></tr></thead><tbody id="m-procs"></tbody></table></div>
 </div></div>
 
+<!-- Réglages -->
+<div class="panel-wrap" id="settings">
+  <nav class="side" id="side">
+    <button data-sec="look" class="on">Apparence</button>
+    <button data-sec="search">Recherche</button>
+    <button data-sec="accounts">Comptes et sécurité</button>
+    <button data-sec="perf">Performance</button>
+    <button data-sec="quick">Raccourci et démarrage</button>
+    <button data-sec="adv">Personnalisation avancée</button>
+    <button data-sec="data">Données</button>
+  </nav>
+  <div class="content">
+  <div class="sec on" id="sec-look">
+    <h2>Apparence</h2>
+    <div class="opt"><div>Thème</div><select data-k="theme"><option value="dark">Sombre</option><option value="light">Clair</option><option value="system">Comme Windows</option></select></div>
+    <div class="opt"><div>Couleur d'accent</div><div class="swatches" id="swatches"></div><input type="color" id="s-accent"></div>
+    <div class="opt"><div>Densité de la barre</div><select data-k="density"><option value="compact">Compacte</option><option value="normal">Normale</option><option value="comfort">Confortable</option></select></div>
+    <div class="opt"><div>Boutons précédent / suivant / actualiser</div><input type="checkbox" data-k="show_nav"></div>
+    <div class="opt"><div>Compteur de consommation dans la barre</div><input type="checkbox" data-k="show_stats"></div>
+    <div class="opt"><div>Bouclier du bloqueur dans la barre</div><input type="checkbox" data-k="show_shield"></div>
+    <h3>Nouvel onglet</h3>
+    <div class="opt"><div>Afficher les sites les plus visités</div><input type="checkbox" data-k="ntp_sites"></div>
+    <div class="opt"><div>Fond<small>Couleur CSS (ex. #1d2b3a) ou adresse d'une image</small></div><input type="text" data-k="ntp_bg" placeholder="Par défaut"></div>
+    <div class="opt"><div>Zoom par défaut des pages</div><select data-k="zoom" data-num><option>67</option><option>75</option><option>80</option><option>90</option><option>100</option><option>110</option><option>125</option><option>150</option></select> %</div>
+  </div>
+
+  <div class="sec" id="sec-search">
+    <h2>Recherche</h2>
+    <div class="opt"><div>Moteur de recherche</div>
+      <select data-k="engine"><option value="google">Google</option><option value="duckduckgo">DuckDuckGo</option><option value="brave">Brave Search</option><option value="bing">Bing</option><option value="ecosia">Ecosia</option><option value="qwant">Qwant</option><option value="custom">Personnalisé…</option></select></div>
+    <div class="opt" id="custom-engine-row"><div>Adresse du moteur personnalisé<small>%s est remplacé par la recherche</small></div><input type="text" data-k="custom_engine" placeholder="https://exemple.com/search?q=%s"></div>
+    <div class="opt"><div>Suggestions en ligne<small>Envoie la frappe au moteur pour proposer des requêtes</small></div><input type="checkbox" data-k="suggestions"></div>
+    <div class="opt col"><div>Bangs personnels<small>Un par ligne : <code>clé=https://site.com/recherche?q=%s</code>, puis tapez « !clé recherche ». Intégrés : !g !d !b !yt !w !gh !a !r !m !i !tr !so !npm !rs !tw !gm</small></div>
+      <textarea data-k="bangs" placeholder="lbc=https://www.leboncoin.fr/recherche?text=%s"></textarea></div>
+  </div>
+
+  <div class="sec" id="sec-accounts">
+    <h2>Comptes et sécurité</h2>
+    <p>Connectez-vous normalement à Gmail, YouTube, Twitch ou n'importe quel site : la session est conservée entre les redémarrages.</p>
+    <div class="opt"><div>Proposer d'enregistrer les mots de passe<small>Stockés chiffrés par le moteur (clé DPAPI liée à votre session Windows), comme dans Edge</small></div><input type="checkbox" data-k="passwords"></div>
+    <div class="opt"><div>Remplissage automatique des formulaires</div><input type="checkbox" data-k="autofill"></div>
+    <div class="opt"><div>Refuser automatiquement les cookies<small>Clique « Tout refuser » sur Google, YouTube et les bannières courantes (Didomi, OneTrust, Cookiebot…) · s'applique aux nouveaux onglets</small></div><input type="checkbox" data-k="reject_cookies"></div>
+    <div class="opt"><div>Protection contre le pistage</div><select data-k="tracking"><option value="off">Désactivée</option><option value="basic">Basique</option><option value="balanced">Équilibrée</option><option value="strict">Stricte (peut gêner certains sites)</option></select></div>
+    <div class="opt"><div>DNS chiffré (DNS-over-HTTPS)<small>Vos requêtes DNS ne passent plus en clair sur le réseau · redémarrage requis</small></div>
+      <select data-k="dns"><option value="cloudflare">Cloudflare</option><option value="google">Google</option><option value="quad9">Quad9</option><option value="off">Désactivé (DNS du système)</option></select></div>
+    <div class="opt"><div>Bloquer pubs et traqueurs<small>EasyList, EasyPrivacy, Liste FR, EasyList Cookie, uBlock, Peter Lowe · mises à jour toutes les 24 h</small><small id="filterstat">—</small></div>
+      <input type="checkbox" data-k="blocker"><button class="btn" id="updfilters">Mettre à jour</button></div>
+    <h3>Chiffrement</h3>
+    <div class="opt"><div>Historique et session<small>Chiffrés sur le disque (DPAPI, entropie propre à Flux) : illisibles depuis un autre compte ou un autre PC.</small></div><span class="status ok">Actif</span></div>
+    <div class="opt"><div>Cookies et mots de passe<small>Chiffrés par le moteur Chromium avec une clé protégée par Windows.</small></div><span class="status ok">Actif</span></div>
+    <div class="opt"><div>Connexions<small>HTTPS automatique quand le site le permet, DNS chiffré selon le réglage ci-dessus.</small></div><span class="status ok">Actif</span></div>
+    <h3>Déconnexion</h3>
+    <div class="opt"><div>Se déconnecter de tous les sites<small>Efface les cookies</small></div><button class="btn danger" data-clear="cookies">Effacer</button></div>
+    <div class="opt"><div>Mots de passe et formulaires enregistrés</div><button class="btn danger" data-clear="passwords">Effacer</button></div>
+  </div>
+
+  <div class="sec" id="sec-perf">
+    <h2>Performance</h2>
+    <p>Les limites de mémoire, processeur et réseau se règlent dans le moniteur (clic sur le compteur de la barre).</p>
+    <div class="opt"><div>Moniteur de consommation</div><button class="btn" id="open-monitor">Ouvrir</button></div>
+    <div class="opt"><div>Mode éco<small>Limite à 3 processus de rendu · redémarrage requis</small></div><input type="checkbox" data-k="eco"></div>
+    <div class="opt"><div>Geler les onglets inactifs après</div><input type="number" min="1" data-k="sleep_min"> min</div>
+    <div class="opt"><div>Décharger les onglets inactifs après<small>0 = jamais</small></div><input type="number" min="0" data-k="discard_min"> min</div>
+  </div>
+
+  <div class="sec" id="sec-quick">
+    <h2>Raccourci et démarrage</h2>
+    <div class="opt"><div>Barre de recherche rapide<small>Ouvre une barre en haut de l'écran depuis n'importe quelle application. Cliquez puis appuyez sur la combinaison voulue.</small><small class="status" id="hotkey-status"></small></div>
+      <button class="keycap" id="hotkey"></button></div>
+    <div class="opt"><div>Garder Flux en arrière-plan<small>Fermer la fenêtre libère les pages mais garde le raccourci actif (icône près de l'horloge)</small></div><input type="checkbox" data-k="background"></div>
+    <div class="opt"><div>Lancer au démarrage de Windows<small>Démarre discrètement en arrière-plan, sans fenêtre</small></div><input type="checkbox" data-k="autostart"></div>
+    <div class="opt"><div>Au démarrage de Flux</div><select data-k="startup"><option value="restore">Rouvrir les onglets précédents</option><option value="newtab">Ouvrir un nouvel onglet</option><option value="home">Ouvrir une page précise</option></select></div>
+    <div class="opt" id="home-row"><div>Page de démarrage</div><input type="text" data-k="home_url" placeholder="https://…"></div>
+  </div>
+
+  <div class="sec" id="sec-adv">
+    <h2>Personnalisation avancée</h2>
+    <p>Tout l'aspect de Flux est modifiable en CSS. Variables utiles : <code>--accent</code>, <code>--bg</code>, <code>--bar</code>, <code>--tab</code>, <code>--fg</code>, <code>--dim</code>, <code>--tabs-h</code>, <code>--bar-h</code>. Éléments : <code>#tabs</code>, <code>.tab</code>, <code>#bar</code>, <code>#omni</code>, <code>#ntp</code>, <code>.site</code>.</p>
+    <div class="opt col"><div>Feuille de style de l'interface<small>Appliquée en direct</small></div>
+      <textarea data-k="custom_css" style="min-height:260px" placeholder="#omni { border-radius: 6px; }&#10;.tab.on { box-shadow: inset 0 -2px var(--accent); }"></textarea></div>
+  </div>
+
+  <div class="sec" id="sec-data">
+    <h2>Données</h2>
+    <div class="opt"><div>Historique<small id="histcount"></small></div><button class="btn danger" id="clearhist">Effacer</button></div>
+    <div class="opt"><div>Cache des sites<small>Libère de l'espace disque ; les pages se rechargent depuis le réseau</small></div><button class="btn" data-clear="cache">Vider</button></div>
+    <div class="opt"><div>Tout effacer<small>Cookies, mots de passe, cache, stockage des sites</small></div><button class="btn danger" data-clear="all">Tout effacer</button></div>
+  </div>
+  </div>
+</div>
+
+<script>/*OMNI*/</script>
 <script>
 const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 const send = m => window.ipc.postMessage(typeof m === 'string' ? m : JSON.stringify(m));
-const BAR = 78;
-const ENGINES = {
-  google: 'https://www.google.com/search?q=', duckduckgo: 'https://duckduckgo.com/?q=',
-  brave: 'https://search.brave.com/search?q=', bing: 'https://www.bing.com/search?q=',
-};
-const BANGS = {
-  g: ENGINES.google, d: ENGINES.duckduckgo, b: ENGINES.brave,
-  yt: 'https://www.youtube.com/results?search_query=', w: 'https://fr.wikipedia.org/w/index.php?search=',
-  gh: 'https://github.com/search?q=', a: 'https://www.amazon.fr/s?k=', r: 'https://www.reddit.com/search/?q=',
-  m: 'https://www.google.com/maps/search/', i: 'https://www.google.com/search?udm=2&q=',
-  tr: 'https://translate.google.com/?sl=auto&tl=fr&text=', so: 'https://stackoverflow.com/search?q=',
-  npm: 'https://www.npmjs.com/search?q=', rs: 'https://docs.rs/releases/search?query=',
-};
-const ICON_SEARCH = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
-const ICON_GO = '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_RELOAD = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>';
+const ACCENTS = ['#ff5b2e', '#e5484d', '#d6409f', '#8e4ec6', '#3e63dd', '#0091ff', '#12a594', '#30a46c', '#f5a524'];
 
-let tabs = [], active = 0, settings = {}, hist = new Map();
-let rows = [], sel = 0, gen = 0, typed = '', remote = [], settingsOpen = false, lastH = undefined;
+let tabs = [], active = 0, settings = {}, hist = new Map(), hotkeyOk = true;
+let rows = [], sel = 0, gen = 0, typed = '', remote = [], panel = null, lastH, lastBar;
 
-/* ---------- utilitaires ---------- */
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const bare = u => u.replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
-const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-const frecency = v => v.visits / (1 + (Date.now() / 1000 - v.last) / 86400 / 7);
-
-function looksUrl(s) {
-  if (/\s/.test(s)) return false;
-  if (/^[a-z][\w+.-]*:\/\//i.test(s) || /^(about|data|file|edge|view-source):/i.test(s)) return true;
-  if (/^localhost(:\d+)?(\/|$)/i.test(s) || /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/|$)/.test(s)) return true;
-  return /^[^\s\/:]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s);
-}
-function toUrl(s) {
-  s = s.trim();
-  // « !yt chats » ou « chats !yt »
-  const pre = s.match(/^!(\w+)\s+(.+)$/), post = s.match(/^(.+?)\s+!(\w+)$/);
-  const [k, q] = pre ? [pre[1], pre[2]] : post ? [post[2], post[1]] : [];
-  if (k && BANGS[k]) return BANGS[k] + encodeURIComponent(q);
-  if (looksUrl(s)) {
-    if (/^[a-z][\w+.-]*:/i.test(s) && !/^localhost:/i.test(s)) return s;
-    return (/^(localhost|\d{1,3}(\.\d{1,3}){3})/i.test(s) ? 'http://' : 'https://') + s;
-  }
-  return (ENGINES[settings.engine] || ENGINES.google) + encodeURIComponent(s);
-}
-
-const favFailed = new Set();
-function fav(url, big) {
-  const h = host(url), letter = esc((h[0] || '•').toUpperCase());
-  if (!h || favFailed.has(h)) return `<span class="fav">${letter}</span>`;
-  let origin; try { origin = new URL(url).origin; } catch { return `<span class="fav">${letter}</span>`; }
-  return `<span class="fav"><img src="${esc(origin)}/favicon.ico" data-h="${esc(h)}" data-l="${letter}" onerror="favErr(this)"></span>`;
-}
-function favErr(img) { favFailed.add(img.dataset.h); img.parentNode.textContent = img.dataset.l; }
+const fmtMem = b => { const mb = b / 1048576; return mb >= 1024 ? (mb / 1024).toFixed(2) + ' Go' : Math.round(mb) + ' Mo'; };
+const fmtRate = b => b < 1024 ? Math.round(b) + ' o/s' : b < 1048576 ? (b / 1024).toFixed(0) + ' Ko/s' : (b / 1048576).toFixed(1) + ' Mo/s';
+const barPx = () => $('#tabs').offsetHeight + $('#bar').offsetHeight;
 
 /* ---------- hauteur de l'interface ---------- */
 function syncHeight() {
   const t = tabs.find(t => t.id === active);
   const empty = !t || !t.url;
-  let h = BAR;
-  if (settingsOpen || empty) h = null;
-  else if ($('#drop').classList.contains('open')) h = BAR + $('#drop').offsetHeight + 16;
+  const bh = barPx();
+  if (bh !== lastBar) { lastBar = bh; send({ t: 'bar', h: bh }); }
+  let h = bh;
+  if (panel || empty) h = null;
+  else if ($('#drop').classList.contains('open')) h = bh + $('#drop').offsetHeight + 16;
   if (h !== lastH) { lastH = h; send({ t: 'height', h }); }
-  $('#ntp').classList.toggle('show', empty && !settingsOpen);
+  $('#ntp').classList.toggle('show', empty && !panel);
 }
 
 /* ---------- onglets ---------- */
@@ -203,7 +309,7 @@ function renderTabs() {
   }
   const t = tabs.find(t => t.id === active);
   if (document.activeElement !== $('#q')) $('#q').value = t ? t.url : '';
-  $('#reload').innerHTML = t && t.loading ? ICON_X : '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>';
+  $('#reload').innerHTML = t && t.loading ? ICON_X : ICON_RELOAD;
   document.title = (t && t.title) || 'Flux';
   syncHeight();
 }
@@ -214,67 +320,15 @@ $('#fwd').onclick = () => send({ t: 'forward' });
 $('#reload').onclick = () => { const t = tabs.find(t => t.id === active); send({ t: t && t.loading ? 'stop' : 'reload' }); };
 
 /* ---------- omnibox ---------- */
-function localMatches(q) {
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-  const ql = q.toLowerCase(), out = [];
-  for (const v of hist.values()) {
-    const b = bare(v.url).toLowerCase(), hay = b + ' ' + v.title.toLowerCase();
-    if (!words.every(w => hay.includes(w))) continue;
-    let s = frecency(v);
-    if (b.startsWith(ql)) s *= 6; else if (host(v.url).includes(ql)) s *= 2;
-    out.push([s, v]);
-  }
-  return out.sort((a, b) => b[0] - a[0]).slice(0, 5).map(x => x[1]);
-}
-
-// Complète le domaine le plus probable directement dans le champ (comme Chrome).
-function inlineComplete(q) {
-  if (!q || /\s/.test(q)) return null;
-  const ql = q.toLowerCase();
-  let best = null, bs = 0;
-  for (const v of hist.values()) {
-    const b = bare(v.url).toLowerCase();
-    if (!b.startsWith(ql)) continue;
-    const s = frecency(v);
-    if (s > bs) { bs = s; best = b; }
-  }
-  if (!best) return null;
-  const slash = best.indexOf('/', ql.length);
-  const done = slash === -1 ? best : best.slice(0, Math.max(slash, ql.length));
-  return done.length > ql.length ? done : null;
-}
-
 function buildRows() {
-  const q = typed.trim();
-  rows = [];
-  if (!q) return;
   const input = $('#q');
   const completed = input.selectionStart === typed.length && input.value.length > typed.length ? input.value : null;
-  if (completed) rows.push({ icon: 'go', main: completed, url: toUrl(completed) });
-  else if (looksUrl(q)) rows.push({ icon: 'go', main: q, url: toUrl(q) });
-  const bang = q.match(/^!(\w+)\s+(.+)$/);
-  rows.push({ icon: 'search', main: q, sub: bang && BANGS[bang[1]] ? host(BANGS[bang[1]]) : 'Rechercher', url: toUrl(q) });
-  const seen = new Set(rows.map(r => r.url));
-  for (const v of localMatches(q)) {
-    if (seen.has(v.url)) continue; seen.add(v.url);
-    rows.push({ icon: 'hist', fav: v.url, main: v.title || bare(v.url), sub: bare(v.url), url: v.url });
-  }
-  for (const s of remote) {
-    if (rows.length >= 10) break;
-    if (s.toLowerCase() === q.toLowerCase()) continue;
-    const url = toUrl(s);
-    if (seen.has(url)) continue; seen.add(url);
-    rows.push({ icon: 'search', main: s, url });
-  }
+  rows = suggestionRows(typed, completed, remote);
 }
-
 function renderDrop() {
   const d = $('#drop');
   sel = Math.min(sel, Math.max(rows.length - 1, 0));
-  d.innerHTML = rows.map((r, i) =>
-    `<div class="row${i === sel ? ' sel' : ''}" data-i="${i}">${r.icon === 'hist' ? fav(r.fav) : r.icon === 'go' ? ICON_GO : ICON_SEARCH}` +
-    `<span class="main">${esc(r.main)}</span>${r.sub ? `<span class="sub">${esc(r.sub)}</span>` : ''}${i === sel ? '<kbd>Entrée</kbd>' : ''}</div>`).join('');
+  d.innerHTML = rows.map((r, i) => rowHtml(r, i, sel)).join('');
   d.classList.toggle('open', rows.length > 0 && document.activeElement === $('#q'));
   syncHeight();
 }
@@ -283,14 +337,13 @@ $('#drop').onmousedown = e => {
   const r = e.target.closest('.row');
   if (r) go(rows[+r.dataset.i].url, e.button === 1 || e.ctrlKey);
 };
-
 function closeDrop() { rows = []; remote = []; renderDrop(); }
 function go(url, newTab) {
   closeDrop();
   $('#q').blur();
+  if (panel) openPanel(null);
   send(newTab ? { t: 'new', url } : { t: 'go', url });
 }
-
 let debounce;
 $('#q').addEventListener('input', e => {
   const q = $('#q');
@@ -303,10 +356,7 @@ $('#q').addEventListener('input', e => {
   remote = remote.filter(s => s.toLowerCase().startsWith(typed.trim().toLowerCase()));
   buildRows(); renderDrop();
   clearTimeout(debounce);
-  if (typed.trim() && settings.suggestions && !looksUrl(typed.trim()) && !typed.startsWith('!')) {
-    const g = ++gen;
-    debounce = setTimeout(() => send({ t: 'suggest', gen: g, q: typed.trim() }), 40);
-  }
+  if (wantsRemote(typed.trim())) { const g = ++gen; debounce = setTimeout(() => send({ t: 'suggest', gen: g, q: typed.trim() }), 40); }
 });
 $('#q').addEventListener('keydown', e => {
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -317,9 +367,7 @@ $('#q').addEventListener('keydown', e => {
   } else if (e.key === 'Enter') {
     e.preventDefault();
     const v = $('#q').value.trim();
-    if (!v) return;
-    const url = rows[sel] ? rows[sel].url : toUrl(v);
-    go(url, e.altKey);
+    if (v) go(rows[sel] ? rows[sel].url : toUrl(v), e.altKey);
   } else if (e.key === 'Escape') {
     const t = tabs.find(t => t.id === active);
     closeDrop();
@@ -337,7 +385,7 @@ $('#q').addEventListener('blur', () => { closeDrop(); const t = tabs.find(t => t
 /* ---------- nouvel onglet ---------- */
 function renderSites() {
   const seen = new Set(), list = [];
-  for (const v of [...hist.values()].sort((a, b) => frecency(b) - frecency(a))) {
+  if (settings.ntp_sites !== false) for (const v of [...hist.values()].sort((a, b) => frecency(b) - frecency(a))) {
     const h = host(v.url);
     if (!h || seen.has(h)) continue;
     seen.add(h); list.push(v);
@@ -347,25 +395,156 @@ function renderSites() {
 }
 $('#sites').onclick = e => { const s = e.target.closest('.site'); if (s) go(new URL(s.dataset.u).origin + '/'); };
 
-/* ---------- réglages ---------- */
-function toggleSettings(open = !settingsOpen) {
-  settingsOpen = open;
-  $('#settings').classList.toggle('show', open);
-  $('#histcount').textContent = `${hist.size} pages mémorisées`;
+/* ---------- panneaux ---------- */
+function openPanel(name) {
+  panel = panel === name ? null : name;
+  $('#settings').classList.toggle('show', panel === 'settings');
+  $('#monitor').classList.toggle('show', panel === 'monitor');
+  $('#histcount').textContent = `${hist.size} pages mémorisées · chiffré`;
   syncHeight();
 }
-$('#menu').onclick = () => toggleSettings();
-$('#shield').onclick = () => toggleSettings(true);
-$('#mem').onclick = () => toggleSettings(true);
-for (const el of document.querySelectorAll('[id^="s-"]')) {
-  el.onchange = () => {
-    const k = el.id.slice(2);
-    settings[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Math.max(+el.min, parseInt(el.value) || 0) : el.value;
-    send({ t: 'settings', s: settings });
-    renderShield();
-  };
+$('#menu').onclick = () => openPanel('settings');
+$('#mem').onclick = () => openPanel('monitor');
+$('#shield').onclick = () => { openPanel('settings'); showSec('accounts'); };
+$('#open-monitor').onclick = () => openPanel('monitor');
+function showSec(id) {
+  $$('#side button').forEach(b => b.classList.toggle('on', b.dataset.sec === id));
+  $$('.sec').forEach(s => s.classList.toggle('on', s.id === 'sec-' + id));
 }
+$('#side').onclick = e => { const b = e.target.closest('button'); if (b) showSec(b.dataset.sec); };
+
+/* ---------- réglages ---------- */
+function save() { send({ t: 'settings', s: settings }); applySettings(); }
+const outputs = {
+  ram_limit: v => v ? fmtMem(v * 1048576) : 'Aucune',
+  cpu_limit: v => v ? v + ' %' : 'Aucun',
+  net_limit: v => v ? (v >= 1024 ? (v / 1024).toFixed(1) + ' Mo/s' : v + ' Ko/s') : 'Illimité',
+};
+for (const el of $$('[data-k]')) {
+  const k = el.dataset.k;
+  const read = () => el.type === 'checkbox' ? el.checked
+    : (el.type === 'number' || el.type === 'range' || 'num' in el.dataset) ? Math.max(+(el.min || 0), parseInt(el.value) || 0)
+    : el.value;
+  const live = el.tagName === 'TEXTAREA' || el.type === 'range' || el.type === 'text';
+  el.addEventListener(live ? 'input' : 'change', () => {
+    settings[k] = read();
+    for (const twin of $$(`[data-k="${k}"]`)) if (twin !== el) twin.type === 'checkbox' ? (twin.checked = settings[k]) : (twin.value = settings[k]);
+    // Les champs texte s'appliquent en direct mais ne s'enregistrent qu'à la sortie du champ.
+    if (live && el.type !== 'range') applySettings(); else save();
+  });
+  if (live && el.type !== 'range') el.addEventListener('change', save);
+}
+function fillSettings() {
+  for (const el of $$('[data-k]')) {
+    const v = settings[el.dataset.k];
+    if (v === undefined) continue;
+    if (el.type === 'checkbox') el.checked = v; else if (document.activeElement !== el) el.value = v;
+  }
+  $('#s-accent').value = settings.accent;
+  renderHotkey();
+}
+$('#swatches').innerHTML = ACCENTS.map(c => `<button class="sw" data-c="${c}" style="background:${c}"></button>`).join('');
+$('#swatches').onclick = e => { const b = e.target.closest('.sw'); if (b) { settings.accent = b.dataset.c; $('#s-accent').value = b.dataset.c; save(); } };
+$('#s-accent').oninput = () => { settings.accent = $('#s-accent').value; applySettings(); };
+$('#s-accent').onchange = save;
+for (const b of $$('[data-clear]')) b.onclick = () => {
+  const label = b.closest('.opt').querySelector('div').firstChild.textContent.trim();
+  if (confirm(`${label} : confirmer ? Cette action est irréversible.`)) { send({ t: 'clear_data', what: b.dataset.clear }); b.textContent = 'Fait'; }
+};
+$('#clearhist').onclick = () => { if (confirm("Effacer tout l'historique ?")) { hist.clear(); send({ t: 'clear_history' }); renderSites(); openPanel('settings'); openPanel('settings'); } };
 $('#updfilters').onclick = () => send({ t: 'update_filters' });
+
+function applySettings() {
+  const s = settings, root = document.documentElement;
+  applyTheme(s);
+  root.dataset.density = s.density || 'normal';
+  $('#nav').classList.toggle('hidden', !s.show_nav);
+  $('#mem').classList.toggle('hidden', !s.show_stats);
+  $('#shield').classList.toggle('hidden', !s.show_shield);
+  $('#shield').classList.toggle('on', !!s.blocker);
+  const bg = (s.ntp_bg || '').trim();
+  $('#ntp').style.background = !bg ? '' : /^(https?:|data:)/.test(bg) ? `center / cover no-repeat url("${bg.replace(/"/g, '')}")` : bg;
+  $('#custom').textContent = s.custom_css || '';
+  $('#custom-engine-row').classList.toggle('hidden', s.engine !== 'custom');
+  $('#home-row').classList.toggle('hidden', s.startup !== 'home');
+  $$('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === s.accent));
+  for (const [k, f] of Object.entries(outputs)) for (const o of $$(`[data-o="${k}"]`)) o.textContent = f(s[k] || 0);
+  $('#ntp-hotkey').textContent = prettyKey(s.hotkey || '');
+  renderSites();
+  requestAnimationFrame(syncHeight);
+}
+
+/* ---------- raccourci global ---------- */
+const prettyKey = k => k.replace(/Ctrl/g, 'Ctrl').replace(/Space/g, 'Espace').replace(/\+/g, ' + ');
+let recording = false;
+function renderHotkey() {
+  $('#hotkey').textContent = recording ? 'Appuyez sur les touches…' : prettyKey(settings.hotkey || '');
+  $('#hotkey').classList.toggle('rec', recording);
+  const st = $('#hotkey-status');
+  st.textContent = hotkeyOk ? 'Raccourci actif' : 'Ce raccourci est déjà utilisé par une autre application : choisissez-en un autre.';
+  st.className = 'status ' + (hotkeyOk ? 'ok' : 'bad');
+}
+$('#hotkey').onclick = () => { recording = true; renderHotkey(); };
+$('#hotkey').onblur = () => { recording = false; renderHotkey(); };
+$('#hotkey').addEventListener('keydown', e => {
+  if (!recording) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.key === 'Escape') { recording = false; renderHotkey(); return; }
+  if (['Control', 'Alt', 'Shift', 'Meta', 'AltGraph'].includes(e.key)) return;
+  const key = e.code === 'Space' ? 'Space' : /^Key[A-Z]$/.test(e.code) ? e.code.slice(3) : /^Digit\d$/.test(e.code) ? e.code.slice(5) : /^F\d{1,2}$/.test(e.code) ? e.code : null;
+  const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Win'].filter(Boolean);
+  if (!key || !mods.length) return;
+  settings.hotkey = [...mods, key].join('+');
+  recording = false;
+  save(); renderHotkey();
+}, true);
+
+/* ---------- moniteur ---------- */
+const series = { mem: [], cpu: [], net: [], block: [] };
+let lastBlocked = null;
+function spark(id, data, max) {
+  const c = $('#' + id), r = devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  c.width = w * r; c.height = h * r;
+  const g = c.getContext('2d'); g.scale(r, r);
+  const top = Math.max(max || 0, ...data, 1e-9), step = w / 59;
+  const color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  g.beginPath();
+  data.forEach((v, i) => { const x = w - (data.length - 1 - i) * step, y = h - 2 - (v / top) * (h - 4); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.strokeStyle = color; g.lineWidth = 1.6; g.stroke();
+  g.lineTo(w, h); g.lineTo(w - (data.length - 1) * step, h); g.closePath();
+  g.fillStyle = color + '22'; g.fill();
+}
+function push(k, v) { series[k].push(v); if (series[k].length > 60) series[k].shift(); }
+function renderStats(m) {
+  const memTxt = fmtMem(m.mem);
+  $('#mem').textContent = `${memTxt} · ${m.cpu.toFixed(0)} % · ${m.alive}/${m.total}`;
+  $('#mem').classList.toggle('limited', !!(settings.ram_limit || settings.cpu_limit || settings.net_limit));
+  $('#nblock').textContent = m.blocked;
+  push('mem', m.mem); push('cpu', m.cpu); push('net', m.net);
+  push('block', lastBlocked === null ? 0 : m.blocked - lastBlocked); lastBlocked = m.blocked;
+  if (panel !== 'monitor') return;
+  $('#c-mem').textContent = memTxt + (settings.ram_limit ? ` / ${fmtMem(settings.ram_limit * 1048576)}` : '');
+  $('#c-cpu').textContent = m.cpu.toFixed(1) + ' %' + (settings.cpu_limit ? ` / ${settings.cpu_limit} %` : '');
+  $('#c-net').textContent = fmtRate(m.net);
+  $('#c-block').textContent = m.blocked;
+  spark('g-mem', series.mem, settings.ram_limit * 1048576); spark('g-cpu', series.cpu, 100);
+  spark('g-net', series.net); spark('g-block', series.block);
+  const label = { running: 'Actif', frozen: 'Gelé', unloaded: 'Déchargé' };
+  $('#m-tabs').innerHTML = m.tabs.filter(t => t.url).sort((a, b) => b.mem - a.mem).map(t =>
+    `<tr><td class="title">${esc(t.title || bare(t.url))}${t.id === active ? ' <span class="state">au premier plan</span>' : ''}</td>` +
+    `<td><span class="state ${t.state}">${label[t.state]}</span></td>` +
+    `<td class="num">${t.state === 'unloaded' ? '—' : fmtMem(t.mem)}</td><td class="num">${t.state === 'unloaded' ? '—' : t.cpu.toFixed(1) + ' %'}</td>` +
+    `<td class="num">${t.net ? fmtRate(t.net) : '—'}</td><td class="num">` +
+    `<button class="mini" data-act="freeze" data-id="${t.id}" ${t.id === active || t.state !== 'running' ? 'disabled' : ''}>Geler</button> ` +
+    `<button class="mini" data-act="discard" data-id="${t.id}" ${t.id === active || t.state === 'unloaded' ? 'disabled' : ''}>Décharger</button> ` +
+    `<button class="mini" data-act="close" data-id="${t.id}">Fermer</button></td></tr>`).join('');
+  $('#m-procs').innerHTML = m.procs.sort((a, b) => b.mem - a.mem).map(p =>
+    `<tr><td>${esc(p.kind)}</td><td class="num">${p.count}</td><td class="num">${fmtMem(p.mem)}</td><td class="num">${p.cpu.toFixed(1)} %</td></tr>`).join('');
+}
+$('#m-tabs').onclick = e => { const b = e.target.closest('[data-act]'); if (b && !b.disabled) send({ t: b.dataset.act, id: +b.dataset.id }); };
+
+/* ---------- listes de filtrage ---------- */
 function ago(secs) {
   const s = Date.now() / 1000 - secs;
   if (s < 90) return "à l'instant";
@@ -374,24 +553,16 @@ function ago(secs) {
   return `il y a ${Math.round(s / 86400)} j`;
 }
 function renderFilters(m) {
-  const stat = m.busy ? 'Téléchargement et compilation en cours…'
+  $('#filterstat').textContent = m.busy ? 'Téléchargement et compilation en cours…'
     : m.updated > 1 ? `${m.rules.toLocaleString('fr-FR')} règles · ${m.lists} listes · mises à jour ${ago(m.updated)}`
     : 'Listes complètes pas encore téléchargées (liste de secours active)';
-  $('#filterstat').textContent = stat;
   $('#updfilters').disabled = m.busy;
   $('#updfilters').style.opacity = m.busy ? .5 : 1;
 }
-$('#clearhist').onclick = () => { hist.clear(); send({ t: 'clear_history' }); renderSites(); toggleSettings(true); };
-function fillSettings() {
-  for (const [k, v] of Object.entries(settings)) {
-    const el = $('#s-' + k);
-    if (el) el.type === 'checkbox' ? (el.checked = v) : (el.value = v);
-  }
-}
-function renderShield() { $('#shield').classList.toggle('on', !!settings.blocker); }
 
 /* ---------- raccourcis clavier ---------- */
 addEventListener('keydown', e => {
+  if (recording) return;
   const k = e.key.toLowerCase(), c = e.ctrlKey || e.metaKey;
   let cmd = null;
   if (c && !e.shiftKey && k === 't') cmd = 'new';
@@ -402,12 +573,14 @@ addEventListener('keydown', e => {
   else if ((c && k === 'l') || (e.altKey && k === 'd') || k === 'f6') { e.preventDefault(); focusOmni(); return; }
   else if (k === 'f5' || (c && k === 'r')) { e.preventDefault(); send({ t: 'reload' }); return; }
   else if (k === 'f12') { e.preventDefault(); send({ t: 'devtools' }); return; }
+  else if (c && e.shiftKey && k === 'escape') { e.preventDefault(); openPanel('monitor'); return; }
   else if (e.altKey && k === 'arrowleft') { e.preventDefault(); send({ t: 'back' }); return; }
   else if (e.altKey && k === 'arrowright') { e.preventDefault(); send({ t: 'forward' }); return; }
-  else if (k === 'escape' && settingsOpen) { toggleSettings(false); return; }
+  else if (k === 'escape' && panel) { openPanel(panel); return; }
   if (cmd) { e.preventDefault(); send(cmd); }
 });
-document.addEventListener('contextmenu', e => { if (e.target !== $('#q')) e.preventDefault(); });
+document.addEventListener('contextmenu', e => { if (!e.target.matches('input, textarea')) e.preventDefault(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(settings));
 
 /* ---------- messages du processus principal ---------- */
 window.flux = m => {
@@ -415,11 +588,11 @@ window.flux = m => {
     case 'tabs': {
       const changed = m.active !== active;
       tabs = m.tabs; active = m.active;
-      if (changed && settingsOpen) toggleSettings(false);
+      if (changed && panel === 'settings') openPanel(null);
       renderTabs();
       break;
     }
-    case 'focus': if (settingsOpen) toggleSettings(false); focusOmni(); break;
+    case 'focus': if (panel) openPanel(null); focusOmni(); break;
     case 'hist':
       if (m.reset) hist = new Map();
       for (const v of m.items) hist.set(v.url, v);
@@ -430,15 +603,9 @@ window.flux = m => {
       remote = m.items;
       if (document.activeElement === $('#q')) { buildRows(); renderDrop(); }
       break;
-    case 'settings': settings = m.s; fillSettings(); renderShield(); break;
+    case 'settings': settings = m.s; hotkeyOk = m.hotkey_ok; fillSettings(); applySettings(); break;
     case 'filters': renderFilters(m); break;
-    case 'stats': {
-      const mb = m.mem / 1048576;
-      $('#mem').textContent = (mb >= 1024 ? (mb / 1024).toFixed(2) + ' Go' : Math.round(mb) + ' Mo') + ` · ${m.alive}/${m.total}`;
-      $('#nblock').textContent = m.blocked;
-      $('#statline').textContent = `${$('#mem').textContent.split(' · ')[0]} utilisés · ${m.alive} onglet(s) actif(s) sur ${m.total} · ${m.blocked} requêtes bloquées`;
-      break;
-    }
+    case 'stats': renderStats(m); break;
   }
 };
 send({ t: 'ready' });

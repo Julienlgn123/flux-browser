@@ -8,12 +8,14 @@ use std::{
 };
 
 pub struct Request {
+    /// Destinataire de la réponse : interface principale ou barre de recherche rapide.
+    pub to_bar: bool,
     pub gen: u64,
     pub query: String,
     pub engine: String,
 }
 
-pub fn spawn(reply: impl Fn(u64, Vec<String>) + Send + 'static) -> Sender<Request> {
+pub fn spawn(reply: impl Fn(bool, u64, Vec<String>) + Send + 'static) -> Sender<Request> {
     let (tx, rx) = channel::<Request>();
     thread::spawn(move || {
         let agent: ureq::Agent = ureq::Agent::config_builder()
@@ -26,7 +28,7 @@ pub fn spawn(reply: impl Fn(u64, Vec<String>) + Send + 'static) -> Sender<Reques
                 req = newer;
             }
             let items = fetch(&agent, &req.engine, &req.query).unwrap_or_default();
-            reply(req.gen, items);
+            reply(req.to_bar, req.gen, items);
         }
     });
     tx

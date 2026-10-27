@@ -25,6 +25,7 @@ pub const LISTS: &[(&str, &str)] = &[
     ("ublock-badware", "https://ublockorigin.github.io/uAssets/filters/badware.txt"),
     ("ublock-unbreak", "https://ublockorigin.github.io/uAssets/filters/unbreak.txt"),
     ("ublock-quick-fixes", "https://ublockorigin.github.io/uAssets/filters/quick-fixes.txt"),
+    ("easylist-cookie", "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"),
     ("peter-lowe", "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=adblockplus&showintro=0&mimetype=plaintext"),
 ];
 
@@ -86,7 +87,8 @@ pub fn is_stale(meta: &Meta) -> bool {
         .map(|d| d.as_secs())
         .unwrap_or(0)
         .saturating_sub(meta.updated);
-    meta.updated == 0 || age >= UPDATE_EVERY.as_secs()
+    // Une liste ajoutée dans une nouvelle version de Flux force aussi la recompilation.
+    meta.updated == 0 || meta.lists < LISTS.len() || age >= UPDATE_EVERY.as_secs()
 }
 
 /// Télécharge et compile toutes les listes. Une liste injoignable est remplacée

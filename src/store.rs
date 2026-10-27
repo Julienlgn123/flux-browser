@@ -1,4 +1,5 @@
-//! Historique, session et réglages, persistés en JSON dans %LOCALAPPDATA%\Flux.
+//! Historique, session et réglages, dans %LOCALAPPDATA%\Flux.
+//! L'historique et la session sont chiffrés (DPAPI, voir `secure`).
 
 use std::{
     collections::HashMap,
@@ -8,6 +9,8 @@ use std::{
 };
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use crate::secure;
 
 const MAX_HISTORY: usize = 5000;
 
@@ -19,23 +22,106 @@ pub struct Visit {
     pub last: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(default)]
 pub struct Settings {
+    // Recherche
     pub engine: String,
+    /// Moteur personnalisé, `%s` = la requête.
+    pub custom_engine: String,
     pub suggestions: bool,
+    /// Bangs personnels, une ligne par bang : `clé=https://…%s`.
+    pub bangs: String,
+
+    // Apparence
+    /// "dark", "light" ou "system".
+    pub theme: String,
+    pub accent: String,
+    /// "compact", "normal" ou "comfort".
+    pub density: String,
+    pub show_nav: bool,
+    pub show_stats: bool,
+    pub show_shield: bool,
+    pub ntp_sites: bool,
+    /// Fond de la page nouvel onglet : couleur CSS ou adresse d'image.
+    pub ntp_bg: String,
+    /// Feuille de style appliquée à l'interface (personnalisation libre).
+    pub custom_css: String,
+    /// Zoom par défaut des pages, en %.
+    pub zoom: u32,
+
+    // Démarrage et arrière-plan
+    /// "restore", "newtab" ou "home".
+    pub startup: String,
+    pub home_url: String,
+    /// Raccourci global de la barre de recherche, ex. "Ctrl+Alt+F".
+    pub hotkey: String,
+    /// Fermer la fenêtre laisse Flux dans la zone de notification.
+    pub background: bool,
+    pub autostart: bool,
+
+    // Comptes et vie privée
+    pub passwords: bool,
+    pub autofill: bool,
+    /// "off", "basic", "balanced" ou "strict".
+    pub tracking: String,
+    /// Refuse automatiquement les bannières de cookies (Google, YouTube, Didomi, OneTrust…).
+    pub reject_cookies: bool,
+    /// DNS chiffré (DNS-over-HTTPS) : "off", "cloudflare", "google" ou "quad9" (redémarrage requis).
+    pub dns: String,
     pub blocker: bool,
+
+    // Consommation
     /// Minutes avant gel d'un onglet caché.
     pub sleep_min: u64,
     /// Minutes avant déchargement complet (0 = jamais).
     pub discard_min: u64,
+    /// Limite de mémoire totale en Mo (0 = aucune) : les onglets en arrière-plan
+    /// les plus anciens sont déchargés au-delà.
+    pub ram_limit: u64,
+    /// Plafond processeur en % de la machine (0 = aucun).
+    pub cpu_limit: u32,
+    /// Débit maximal par onglet en Ko/s (0 = illimité).
+    pub net_limit: u64,
     /// Limite le nombre de processus de rendu (redémarrage requis).
     pub eco: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { engine: "google".into(), suggestions: true, blocker: true, sleep_min: 5, discard_min: 60, eco: false }
+        Self {
+            engine: "google".into(),
+            custom_engine: String::new(),
+            suggestions: true,
+            bangs: String::new(),
+            theme: "dark".into(),
+            accent: "#ff5b2e".into(),
+            density: "normal".into(),
+            show_nav: true,
+            show_stats: true,
+            show_shield: true,
+            ntp_sites: true,
+            ntp_bg: String::new(),
+            custom_css: String::new(),
+            zoom: 100,
+            startup: "restore".into(),
+            home_url: String::new(),
+            hotkey: "Ctrl+Alt+F".into(),
+            background: true,
+            autostart: true,
+            passwords: true,
+            autofill: true,
+            tracking: "balanced".into(),
+            reject_cookies: true,
+            dns: "cloudflare".into(),
+            blocker: true,
+            sleep_min: 5,
+            discard_min: 60,
+            ram_limit: 0,
+            cpu_limit: 0,
+            net_limit: 0,
+            eco: false,
+        }
     }
 }
 
@@ -63,15 +149,24 @@ pub fn now() -> u64 {
 }
 
 fn load<T: DeserializeOwned + Default>(path: PathBuf) -> T {
-    fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    fs::read(path)
+        .ok()
+        .and_then(|b| secure::decrypt(&b))
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
 }
 
-fn save<T: Serialize>(path: PathBuf, value: &T) {
-    if let Ok(b) = serde_json::to_vec(value) {
-        let tmp = path.with_extension("tmp");
-        if fs::write(&tmp, b).is_ok() {
-            let _ = fs::rename(tmp, path);
+fn save<T: Serialize>(path: PathBuf, value: &T, encrypted: bool) {
+    let Ok(mut bytes) = serde_json::to_vec(value) else { return };
+    if encrypted {
+        match secure::encrypt(&bytes) {
+            Some(c) => bytes = c,
+            None => return,
         }
+    }
+    let tmp = path.with_extension("tmp");
+    if fs::write(&tmp, bytes).is_ok() {
+        let _ = fs::rename(tmp, path);
     }
 }
 
@@ -89,7 +184,7 @@ impl Store {
         let list: Vec<Visit> = load(dir.join("history.json"));
         let settings = load(dir.join("settings.json"));
         let history = list.into_iter().map(|v| (v.url.clone(), v)).collect();
-        Self { dir, history, settings, dirty: false }
+        Self { dir, history, settings, dirty: true }
     }
 
     pub fn webview_dir(&self) -> PathBuf {
@@ -143,11 +238,11 @@ impl Store {
     }
 
     pub fn save_session(&self, s: &Session) {
-        save(self.dir.join("session.json"), s);
+        save(self.dir.join("session.json"), s, true);
     }
 
     pub fn save_settings(&self) {
-        save(self.dir.join("settings.json"), &self.settings);
+        save(self.dir.join("settings.json"), &self.settings, false);
     }
 
     pub fn flush(&mut self) {
@@ -159,7 +254,7 @@ impl Store {
             self.history = keep.into_iter().map(|v| (v.url.clone(), v)).collect();
         }
         let list: Vec<&Visit> = self.history.values().collect();
-        save(self.dir.join("history.json"), &list);
+        save(self.dir.join("history.json"), &list, true);
         self.dirty = false;
     }
 }

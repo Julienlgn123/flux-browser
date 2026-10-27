@@ -22,6 +22,24 @@ Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
 - Bangs : `!yt`, `!w`, `!gh`, `!g`, `!d`, `!b`, `!a`, `!r`, `!m`, `!i`, `!tr`, `!so`, `!npm`, `!rs` (avant ou après la requête).
 - Moteur au choix : Google, DuckDuckGo, Brave, Bing.
 
+## Barre de recherche rapide
+- **Ctrl + Alt + F** (ou **AltGr + F**) depuis n'importe quelle application : une barre s'ouvre en haut de l'écran, Entrée lance la recherche dans Flux.
+- Flux reste dans la zone de notification quand on ferme la fenêtre (les pages sont libérées) et démarre avec Windows, en arrière-plan.
+- Instance unique : relancer Flux réaffiche la fenêtre existante.
+
+## Consommation en temps réel et limiteurs
+- Moniteur (clic sur le compteur de la barre) : mémoire, processeur, réseau et requêtes bloquées en direct, par onglet et par processus.
+- Limite de mémoire (décharge les onglets inactifs au-delà), plafond processeur matériel (Job Object Windows), débit réseau maximal par onglet.
+
+## Comptes, chiffrement, vie privée
+- Connexion persistante à Gmail, YouTube, Twitch… ; mots de passe et formulaires enregistrés par le moteur (chiffrés via DPAPI).
+- Historique et session chiffrés sur le disque (DPAPI + entropie propre à Flux).
+- DNS-over-HTTPS (Cloudflare par défaut), HTTPS automatique, protection anti-pistage réglable.
+- Refus automatique des bannières de cookies (Google, YouTube, Didomi, OneTrust, Cookiebot…) + liste EasyList Cookie.
+
+## Personnalisation
+Thème clair/sombre/système, couleur d'accent, densité, éléments de la barre, fond de la page nouvel onglet, zoom par défaut, moteur de recherche (dont personnalisé), bangs personnels, raccourci global, page de démarrage, et feuille de style CSS libre pour toute l'interface.
+
 ## Raccourcis
 Ctrl+T / Ctrl+W / Ctrl+Maj+T, Ctrl+L / Alt+D / F6, Ctrl+Tab, Ctrl+1…9, F5, F12, Alt+←/→, Alt+Entrée (ouvrir dans un onglet), Maj+Suppr (retirer une entrée d'historique).
 
@@ -29,4 +47,4 @@ Ctrl+T / Ctrl+W / Ctrl+Maj+T, Ctrl+L / Alt+D / F6, Ctrl+Tab, Ctrl+1…9, F5, F12
 ```
 cargo build --release
 ```
-Binaire : `target/release/flux.exe`. Données : `%LOCALAPPDATA%\Flux`.
+Binaire : `target/release/flux.exe` (installé dans `%LOCALAPPDATA%\Programs\Flux`). Données : `%LOCALAPPDATA%\Flux`.
