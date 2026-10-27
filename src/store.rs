@@ -89,6 +89,8 @@ pub struct Settings {
     pub net_limit: u64,
     /// Limite le nombre de processus de rendu (redémarrage requis).
     pub eco: bool,
+    /// Arguments supplémentaires passés au moteur Chromium (redémarrage requis).
+    pub extra_args: String,
 }
 
 impl Default for Settings {
@@ -127,6 +129,7 @@ impl Default for Settings {
             cpu_limit: 0,
             net_limit: 0,
             eco: false,
+            extra_args: String::new(),
         }
     }
 }
@@ -155,6 +158,11 @@ pub struct Store {
     pub bookmarks: Vec<Bookmark>,
     pub settings: Settings,
     pub dirty: bool,
+}
+
+/// Profil séparé (variable FLUX_PROFILE) : données et instance indépendantes, pour les tests.
+pub fn profile_suffix() -> String {
+    std::env::var("FLUX_PROFILE").map(|p| format!("-{p}")).unwrap_or_default()
 }
 
 pub fn now() -> u64 {
@@ -192,7 +200,7 @@ pub fn frecency(v: &Visit, now: u64) -> f64 {
 impl Store {
     pub fn open() -> Self {
         let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-        let dir = base.join("Flux");
+        let dir = base.join(format!("Flux{}", profile_suffix()));
         let _ = fs::create_dir_all(&dir);
         let list: Vec<Visit> = load(dir.join("history.json"));
         let settings = load(dir.join("settings.json"));
@@ -240,6 +248,19 @@ impl Store {
         let mut list: Vec<&Visit> = self.history.values().collect();
         list.sort_by(|a, b| frecency(b, t).total_cmp(&frecency(a, t)));
         list.into_iter().take(limit).cloned().collect()
+    }
+
+    /// Tout l'historique, de la visite la plus récente à la plus ancienne.
+    pub fn chronological(&self) -> Vec<Visit> {
+        let mut list: Vec<Visit> = self.history.values().cloned().collect();
+        list.sort_by(|a, b| b.last.cmp(&a.last));
+        list
+    }
+
+    pub fn forget(&mut self, url: &str) {
+        if self.history.remove(url).is_some() {
+            self.dirty = true;
+        }
     }
 
     pub fn clear_history(&mut self) {

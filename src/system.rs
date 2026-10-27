@@ -108,7 +108,7 @@ impl Hotkey {
 
 fn pipe_name() -> String {
     let user = std::env::var("USERNAME").unwrap_or_default();
-    format!(r"\\.\pipe\flux-browser-{user}")
+    format!(r"\\.\pipe\flux-browser-{user}{}", crate::store::profile_suffix())
 }
 
 /// Si Flux tourne déjà, lui transmet la commande et renvoie `true`.
@@ -172,6 +172,10 @@ fn read_all(pipe: HANDLE) -> String {
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 
 pub fn set_autostart(enabled: bool) {
+    // Un profil de test ne doit jamais remplacer le lancement au démarrage du vrai Flux.
+    if !crate::store::profile_suffix().is_empty() {
+        return;
+    }
     unsafe {
         if enabled {
             let Ok(exe) = std::env::current_exe() else { return };

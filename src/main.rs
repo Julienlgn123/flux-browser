@@ -161,6 +161,8 @@ enum UiMsg {
     Bookmarks { items: Vec<Bookmark> },
     PickBackground,
     ClearBackground,
+    History,
+    HistoryDelete { url: String },
 }
 
 #[derive(Deserialize)]
@@ -233,6 +235,7 @@ struct App {
     ui_h: Option<f64>,
     /// La fenêtre principale est affichée (sinon Flux tourne en arrière-plan).
     shown: bool,
+    minimized: bool,
     ticks: u64,
     _tray: Option<TrayIcon>,
 }
@@ -251,7 +254,7 @@ fn theme_of(s: &Settings) -> Option<Theme> {
 
 /// Arguments du moteur, communs à toutes les vues (ils doivent être identiques).
 fn browser_args(s: &Settings) -> String {
-    let mut features = vec!["BackForwardCache", "ParallelDownloading", "HttpsUpgrades"];
+    let mut features = vec!["ParallelDownloading", "HttpsUpgrades"];
     let doh = match s.dns.as_str() {
         "cloudflare" => Some("https://cloudflare-dns.com/dns-query"),
         "google" => Some("https://dns.google/dns-query{?dns}"),
@@ -270,13 +273,25 @@ fn browser_args(s: &Settings) -> String {
         doh_feature = format!("DnsOverHttps:Fallback/true/Templates/{escaped}");
         features.push(&doh_feature);
     }
+    let mut disabled = vec!["msWebOOUI", "msPdfOOUI", "msSmartScreenProtection", "Translate"];
+    if s.eco {
+        // Le cache « précédent / suivant » garde les pages quittées en mémoire.
+        disabled.push("BackForwardCache");
+    }
+    // V8 privilégie la mémoire à la vitesse brute : environ −14 % de RAM sur YouTube,
+    // sans différence perceptible.
     let mut args = format!(
-        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,Translate \
-         --enable-features={} --process-per-site --disable-background-networking --no-pings",
+        "--disable-features={} --enable-features={} --process-per-site --disable-background-networking \
+         --no-pings --js-flags=--optimize-for-size",
+        disabled.join(","),
         features.join(",")
     );
     if s.eco {
-        args.push_str(" --renderer-process-limit=3");
+        args.push_str(" --renderer-process-limit=3 --enable-low-end-device-mode");
+    }
+    if !s.extra_args.trim().is_empty() {
+        args.push(' ');
+        args.push_str(s.extra_args.trim());
     }
     args
 }
@@ -770,6 +785,11 @@ impl App {
                 self.store.save_bookmarks();
                 self.push_bookmarks();
             }
+            UiMsg::History => self.send(json!({ "t": "history", "items": self.store.chronological() })),
+            UiMsg::HistoryDelete { url } => {
+                self.store.forget(&url);
+                self.store.flush();
+            }
             UiMsg::PickBackground => {
                 if let Some(path) = system::pick_media(self.window.hwnd()) {
                     if let Some(name) = media::install(&self.store.dir, &path) {
@@ -1016,6 +1036,26 @@ impl App {
         wv2::raise(&ui);
         self.ui = Some(ui);
         self.layout();
+    }
+
+    /// Fenêtre réduite : tout passe en mémoire réduite, rien n'est gelé (le son continue).
+    fn on_minimized(&mut self, minimized: bool) {
+        if minimized == self.minimized {
+            return;
+        }
+        self.minimized = minimized;
+        let level = if minimized { MemoryUsageLevel::Low } else { MemoryUsageLevel::Normal };
+        for t in &mut self.tabs {
+            if let Some(v) = &t.view {
+                if t.id == self.active || !minimized {
+                    let _ = v.set_memory_usage_level(level);
+                    t.low = minimized;
+                }
+            }
+        }
+        if let Some(ui) = &self.ui {
+            let _ = ui.set_memory_usage_level(level);
+        }
     }
 
     fn show_bar(&mut self) {
@@ -1265,6 +1305,7 @@ fn main() {
         bar_h: 78.0,
         ui_h: Some(78.0),
         shown: !background,
+        minimized: false,
         ticks: 0,
         _tray: tray(&proxy),
     };
@@ -1295,7 +1336,11 @@ fn main() {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent { window_id, event, .. } if window_id == main_id => match event {
-                WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => app.layout(),
+                WindowEvent::Resized(_) => {
+                    app.on_minimized(app.window.is_minimized());
+                    app.layout();
+                }
+                WindowEvent::ScaleFactorChanged { .. } => app.layout(),
                 WindowEvent::CloseRequested => {
                     if app.settings().background {
                         app.hide_window();

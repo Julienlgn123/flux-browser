@@ -133,6 +133,22 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .keycap.rec { border-color: var(--accent); color: var(--accent); }
 .status { font-size: 12px; } .status.ok { color: var(--ok); } .status.bad { color: #e5533d; }
 
+/* Historique */
+.hist-head { display: flex; gap: 10px; align-items: center; margin: 4px 0 6px; }
+.hist-head input { flex: 1; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--field); color: var(--fg); font: 14px var(--font); outline: 0; user-select: text; }
+.hist-head input:focus { border-color: var(--accent); }
+.hday { color: var(--dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 6px; }
+.hrow { display: flex; align-items: center; gap: 12px; padding: 7px 12px; border-radius: 8px; }
+.hrow:hover { background: var(--bar); }
+.hrow time { width: 44px; flex: none; color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+.hrow .ht { flex: 0 1 auto; min-width: 0; max-width: 55%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hrow .hu { flex: 1; min-width: 0; color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hrow .hx { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--dim); opacity: 0; }
+.hrow:hover .hx { opacity: 1; }
+.hrow .hx:hover { background: var(--tab-h); color: var(--fg); }
+.hrow .hx svg { width: 12px; height: 12px; }
+#hist-more { margin: 14px auto 0; display: block; }
+
 /* Moniteur */
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .card { background: var(--bar); border-radius: 12px; padding: 14px 16px 10px; }
@@ -165,6 +181,7 @@ td.num, th.num { text-align: right; }
     <button id="star" title="Ajouter aux favoris (Ctrl+D)"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button></label>
   <button class="pill" id="mem" title="Consommation en temps réel — cliquer pour le moniteur">—</button>
   <button class="pill" id="shield" title="Pubs et traqueurs bloqués"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><b id="nblock">0</b></button>
+  <button class="ib" id="histbtn" title="Historique (Ctrl+H)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
   <button class="ib" id="menu" title="Réglages"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
 <div id="favbar"></div>
@@ -179,6 +196,15 @@ td.num, th.num { text-align: right; }
     <div id="ntp-drop"></div>
   </div>
 </div>
+
+<!-- Historique -->
+<div class="panel-wrap" id="history"><div class="content" style="max-width:900px;margin:0 auto">
+  <h2>Historique</h2>
+  <p>Pages visitées, de la plus récente à la plus ancienne. Chiffré sur le disque.</p>
+  <div class="hist-head"><input id="hist-q" placeholder="Rechercher dans l'historique" spellcheck="false" autocomplete="off"><button class="btn danger" id="hist-clear">Tout effacer</button></div>
+  <div id="hist-list"></div>
+  <button class="btn" id="hist-more">Afficher plus</button>
+</div></div>
 
 <!-- Moniteur de consommation -->
 <div class="panel-wrap" id="monitor"><div class="content" style="max-width:1100px;margin:0 auto">
@@ -275,7 +301,7 @@ td.num, th.num { text-align: right; }
     <h2>Performance</h2>
     <p>Les limites de mémoire, processeur et réseau se règlent dans le moniteur (clic sur le compteur de la barre).</p>
     <div class="opt"><div>Moniteur de consommation</div><button class="btn" id="open-monitor">Ouvrir</button></div>
-    <div class="opt"><div>Mode éco<small>Limite à 3 processus de rendu · redémarrage requis</small></div><input type="checkbox" data-k="eco"></div>
+    <div class="opt"><div>Mode éco<small>Encore moins de RAM : mode « appareil modeste » du moteur, 3 processus de rendu au plus, pages quittées non gardées en mémoire · redémarrage requis</small></div><input type="checkbox" data-k="eco"></div>
     <div class="opt"><div>Geler les onglets inactifs après</div><input type="number" min="1" data-k="sleep_min"> min</div>
     <div class="opt"><div>Décharger les onglets inactifs après<small>0 = jamais</small></div><input type="number" min="0" data-k="discard_min"> min</div>
   </div>
@@ -299,7 +325,7 @@ td.num, th.num { text-align: right; }
 
   <div class="sec" id="sec-data">
     <h2>Données</h2>
-    <div class="opt"><div>Historique<small id="histcount"></small></div><button class="btn danger" id="clearhist">Effacer</button></div>
+    <div class="opt"><div>Historique<small id="histcount"></small></div><button class="btn" id="open-history">Afficher</button><button class="btn danger" id="clearhist">Effacer</button></div>
     <div class="opt"><div>Cache des sites<small>Libère de l'espace disque ; les pages se rechargent depuis le réseau</small></div><button class="btn" data-clear="cache">Vider</button></div>
     <div class="opt"><div>Tout effacer<small>Cookies, mots de passe, cache, stockage des sites</small></div><button class="btn danger" data-clear="all">Tout effacer</button></div>
   </div>
@@ -495,6 +521,8 @@ $('#fav-new').onclick = () => { favs.push({ url: 'https://', title: 'Nouveau fav
 function openPanel(name) {
   panel = panel === name ? null : name;
   $('#settings').classList.toggle('show', panel === 'settings');
+  $('#history').classList.toggle('show', panel === 'history');
+  if (panel === 'history') { send({ t: 'history' }); $('#hist-q').value = ''; setTimeout(() => $('#hist-q').focus(), 0); }
   $('#monitor').classList.toggle('show', panel === 'monitor');
   $('#histcount').textContent = `${hist.size} pages mémorisées · chiffré`;
   renderFavs();
@@ -509,6 +537,48 @@ function showSec(id) {
   $$('.sec').forEach(s => s.classList.toggle('on', s.id === 'sec-' + id));
 }
 $('#side').onclick = e => { const b = e.target.closest('button'); if (b) showSec(b.dataset.sec); };
+
+/* ---------- historique ---------- */
+let histItems = [], histShown = 300;
+const ICON_DEL = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  if (diff === 0) return "Aujourd'hui";
+  if (diff === 1) return 'Hier';
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+function renderHistory() {
+  const words = $('#hist-q').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const list = words.length ? histItems.filter(v => words.every(w => (v.url + ' ' + v.title).toLowerCase().includes(w))) : histItems;
+  let html = '', day = '';
+  for (const v of list.slice(0, histShown)) {
+    const d = new Date(v.last * 1000), label = dayLabel(d);
+    if (label !== day) { day = label; html += `<div class="hday">${esc(label)}</div>`; }
+    html += `<div class="hrow" data-u="${esc(v.url)}"><time>${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</time>${fav(v.url)}` +
+      `<span class="ht">${esc(v.title || bare(v.url))}</span><span class="hu">${esc(bare(v.url))}</span><button class="hx" title="Retirer de l'historique">${ICON_DEL}</button></div>`;
+  }
+  $('#hist-list').innerHTML = html || `<p style="color:var(--dim);margin-top:20px">${words.length ? 'Aucun résultat.' : 'Historique vide.'}</p>`;
+  $('#hist-more').classList.toggle('hidden', list.length <= histShown);
+}
+$('#histbtn').onclick = () => openPanel('history');
+$('#open-history').onclick = () => openPanel('history');
+$('#hist-q').oninput = () => { histShown = 300; renderHistory(); };
+$('#hist-more').onclick = () => { histShown += 300; renderHistory(); };
+$('#hist-list').onmousedown = e => {
+  const row = e.target.closest('.hrow');
+  if (!row) return;
+  e.preventDefault();
+  const url = row.dataset.u;
+  if (e.target.closest('.hx')) {
+    histItems = histItems.filter(v => v.url !== url); hist.delete(url);
+    send({ t: 'history_delete', url }); renderHistory();
+  } else if (e.button === 1 || e.ctrlKey) send({ t: 'new', url });
+  else go(url);
+};
+$('#hist-clear').onclick = () => {
+  if (confirm("Effacer tout l'historique ?")) { histItems = []; hist.clear(); send({ t: 'clear_history' }); renderHistory(); }
+};
 
 /* ---------- réglages ---------- */
 function save() { send({ t: 'settings', s: settings }); applySettings(); }
@@ -686,6 +756,7 @@ addEventListener('keydown', e => {
   else if (k === 'f12') { e.preventDefault(); send({ t: 'devtools' }); return; }
   else if (c && e.shiftKey && k === 'escape') { e.preventDefault(); openPanel('monitor'); return; }
   else if (c && k === 'd') { e.preventDefault(); toggleFav(); return; }
+  else if (c && k === 'h') { e.preventDefault(); openPanel('history'); return; }
   else if (e.altKey && k === 'arrowleft') { e.preventDefault(); send({ t: 'back' }); return; }
   else if (e.altKey && k === 'arrowright') { e.preventDefault(); send({ t: 'forward' }); return; }
   else if (k === 'escape' && panel) { openPanel(panel); return; }
@@ -710,6 +781,7 @@ window.flux = m => {
       for (const v of m.items) hist.set(v.url, v);
       break;
     case 'favs': favs = m.items; renderFavs(); break;
+    case 'history': histItems = m.items; histShown = 300; renderHistory(); break;
     case 'sugg': {
       const o = activeOmni;
       if (!o || m.gen !== o.gen) return;

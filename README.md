@@ -37,7 +37,8 @@ Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
 - DNS-over-HTTPS (Cloudflare par défaut), HTTPS automatique, protection anti-pistage réglable.
 - Refus automatique des bannières de cookies (Google, YouTube, Didomi, OneTrust, Cookiebot…) + liste EasyList Cookie.
 
-## Page d'accueil et favoris
+## Page d'accueil, favoris et historique
+- Historique (Ctrl+H ou icône horloge) : regroupé par jour, recherche, suppression d'une entrée ou de tout.
 - Page d'accueil épurée : logo et grande barre de recherche, sur un fond au choix (image, GIF ou vidéo locale, lue par morceaux et en pause dès qu'elle n'est pas visible), avec assombrissement réglable.
 - Favoris : étoile dans la barre d'adresse ou Ctrl+D, barre de favoris, gestion (renommer, réordonner, supprimer), prioritaires dans les suggestions ; stockés chiffrés.
 

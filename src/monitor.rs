@@ -14,7 +14,7 @@ use windows::Win32::{
             JOBOBJECT_CPU_RATE_CONTROL_INFORMATION, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
             JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP,
         },
-        ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX},
+        ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX2},
         SystemInformation::{GetSystemInfo, SYSTEM_INFO},
         Threading::{
             GetCurrentProcess, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -24,7 +24,7 @@ use windows::Win32::{
 
 #[derive(Clone, Copy, Default)]
 pub struct Usage {
-    /// Mémoire privée, en octets.
+    /// Jeu de travail privé, en octets : la colonne « Mémoire » du Gestionnaire des tâches.
     pub mem: u64,
     /// Processeur, en % de la machine entière (comme le Gestionnaire des tâches).
     pub cpu: f64,
@@ -55,13 +55,13 @@ impl Sampler {
             let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
                 return Usage::default();
             };
-            let mut c = PROCESS_MEMORY_COUNTERS_EX::default();
+            let mut c = PROCESS_MEMORY_COUNTERS_EX2::default();
             let mem = GetProcessMemoryInfo(
                 h,
                 &mut c as *mut _ as *mut PROCESS_MEMORY_COUNTERS,
-                std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
+                std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX2>() as u32,
             )
-            .map(|_| c.PrivateUsage as u64)
+            .map(|_| c.PrivateWorkingSetSize as u64)
             .unwrap_or(0);
             let (mut a, mut b, mut k, mut u) = Default::default();
             let busy = GetProcessTimes(h, &mut a, &mut b, &mut k, &mut u).map(|_| ft(k) + ft(u)).unwrap_or(0);
