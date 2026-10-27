@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod downloads;
 mod filters;
 mod media;
 mod monitor;
@@ -37,6 +38,7 @@ use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem},
     MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
 };
+use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2DownloadOperation;
 use wry::{
     dpi::{LogicalPosition, LogicalSize as WryLogicalSize},
     MemoryUsageLevel, NewWindowResponse, PageLoadEvent, Rect, WebContext, WebView, WebViewBuilder,
@@ -71,6 +73,7 @@ addEventListener('keydown', e => {
   else if ((c && k === 'l') || (e.altKey && k === 'd') || k === 'f6') cmd = 'focus';
   else if (c && k === 'tab') cmd = e.shiftKey ? 'prev' : 'next';
   else if (c && k >= '1' && k <= '9') cmd = 'n' + k;
+  else if (c && k === 'j') cmd = 'downloads';
   if (cmd) { e.preventDefault(); e.stopPropagation(); window.ipc.postMessage(cmd); }
 }, true);
 "#;
@@ -133,6 +136,8 @@ pub enum UserEvent {
     Command(String),
     /// Morceau d'information pour le panneau « Infos du site », transmis tel quel à l'interface.
     SitePart(serde_json::Value),
+    /// Début, progression ou changement d'état d'un téléchargement.
+    Download(serde_json::Value),
     /// Cookies à supprimer ; `true` = rafraîchir ensuite la liste du panneau.
     DeleteCookies(Vec<serde_json::Value>, bool),
     TrayOpen,
@@ -170,6 +175,14 @@ enum UiMsg {
     History,
     HistoryDelete { url: String },
     SiteInfo,
+    DlOpen { id: u32 },
+    DlShow { id: u32 },
+    DlPause { id: u32 },
+    DlResume { id: u32 },
+    DlCancel { id: u32 },
+    DlRemove { id: u32 },
+    DlClear,
+    DlFolder,
     CookieDelete { name: String, domain: String, path: String },
     CookieBlock { domain: String, on: bool },
     SiteClear,
@@ -242,6 +255,10 @@ struct App {
     cookie_block: Rc<RefCell<Vec<String>>>,
     /// Hébergeur déjà identifié pour chaque IP.
     host_cache: HashMap<String, serde_json::Value>,
+    dl_ops: downloads::Ops,
+    dl_next: Rc<Cell<u32>>,
+    /// Vues d'onglets fermés ou déchargés gardées en vie le temps de finir un téléchargement.
+    parked: Vec<(u32, WebView)>,
     suggest: Sender<suggest::Request>,
     hotkey: system::Hotkey,
     hotkey_status: (bool, String),
@@ -449,6 +466,7 @@ impl App {
             self.blocker_on.clone(),
             self.blocked.clone(),
         );
+        downloads::install(&view, id, self.dl_ops.clone(), self.dl_next.clone(), self.proxy.clone());
         let s = self.settings();
         wv2::set_autofill(&view, s.passwords, s.autofill);
         wv2::watch_network(&view, received, doc, page_url);
@@ -542,7 +560,7 @@ impl App {
         if !t.url.is_empty() {
             self.closed.push(SessionTab { url: t.url, title: t.title });
         }
-        drop(t.view);
+        self.park_or_drop(id, t.view);
         if self.tabs.is_empty() {
             self.new_tab(None);
         } else if self.active == id {
@@ -555,7 +573,7 @@ impl App {
 
     /// Libère toute la mémoire d'un onglet ; il se recharge quand on y revient.
     fn discard(&mut self, id: u32) {
-        if id == self.active {
+        if id == self.active || self.downloading(id) {
             return;
         }
         let Some(t) = self.tab_mut(id) else { return };
@@ -631,6 +649,12 @@ impl App {
                 let _ = ui.focus();
             }
                 self.send(json!({ "t": "focus" }));
+            }
+            "downloads" => {
+                if let Some(ui) = &self.ui {
+                    let _ = ui.focus();
+                }
+                self.send(json!({ "t": "dl_toggle" }));
             }
             "next" => self.cycle(1),
             "prev" => self.cycle(-1),
@@ -760,6 +784,7 @@ impl App {
                 self.push_tabs();
                 self.push_filters();
                 self.push_bookmarks();
+                self.send(json!({ "t": "dl_list", "items": self.store.downloads }));
                 if self.active_view().is_none() {
                     self.send(json!({ "t": "focus" }));
                 }
@@ -821,6 +846,43 @@ impl App {
                 self.push_bookmarks();
             }
             UiMsg::SiteInfo => self.site_info(),
+            UiMsg::DlOpen { id } => {
+                if let Some(p) = self.dl_path(id) {
+                    downloads::open(&p);
+                }
+            }
+            UiMsg::DlShow { id } => {
+                if let Some(p) = self.dl_path(id) {
+                    downloads::show_in_folder(&p);
+                }
+            }
+            UiMsg::DlPause { id } => {
+                if let Some(op) = self.dl_op(id) {
+                    downloads::pause(&op);
+                    self.on_download(json!({ "kind": "state", "id": id, "state": "paused" }));
+                }
+            }
+            UiMsg::DlResume { id } => {
+                if let Some(op) = self.dl_op(id) {
+                    downloads::resume(&op);
+                    self.on_download(json!({ "kind": "state", "id": id, "state": "progress" }));
+                }
+            }
+            UiMsg::DlCancel { id } => {
+                if let Some(op) = self.dl_op(id) {
+                    downloads::cancel(&op);
+                }
+            }
+            UiMsg::DlRemove { id } => {
+                self.store.downloads.retain(|d| d.id != id || d.active());
+                self.store.save_downloads();
+            }
+            UiMsg::DlClear => {
+                self.store.downloads.retain(|d| d.active());
+                self.store.save_downloads();
+                self.send(json!({ "t": "dl_list", "items": self.store.downloads }));
+            }
+            UiMsg::DlFolder => downloads::open_folder(self.store.downloads.first().map(|d| d.path.as_str())),
             UiMsg::CookieDelete { name, domain, path } => {
                 self.delete_cookies(vec![json!({ "name": name, "domain": domain, "path": path })], true);
             }
@@ -926,8 +988,9 @@ impl App {
         let sleep = Duration::from_secs(s.sleep_min.max(1) * 60);
         let discard = (s.discard_min > 0).then(|| Duration::from_secs(s.discard_min * 60));
         let active = self.active;
+        let busy: HashSet<u32> = self.tabs.iter().map(|t| t.id).filter(|&id| self.downloading(id)).collect();
         let mut changed = false;
-        for t in self.tabs.iter_mut().filter(|t| t.id != active) {
+        for t in self.tabs.iter_mut().filter(|t| t.id != active && !busy.contains(&t.id)) {
             let Some(v) = &t.view else { continue };
             if wv2::playing_audio(v) {
                 t.hidden_since = Instant::now();
@@ -1245,6 +1308,62 @@ impl App {
         });
     }
 
+    /// L'onglet a-t-il un téléchargement en cours ?
+    fn downloading(&self, tab: u32) -> bool {
+        let ops = self.dl_ops.borrow();
+        self.store.downloads.iter().any(|d| d.tab == tab && d.active() && ops.contains_key(&d.id))
+    }
+
+    fn park_or_drop(&mut self, tab: u32, view: Option<WebView>) {
+        if let Some(v) = view {
+            if self.downloading(tab) {
+                let _ = v.set_visible(false);
+                self.parked.push((tab, v));
+            }
+        }
+    }
+
+    fn on_download(&mut self, ev: serde_json::Value) {
+        match ev["kind"].as_str() {
+            Some("start") => {
+                if let Ok(mut item) = serde_json::from_value::<downloads::Item>(ev["item"].clone()) {
+                    item.tab = ev["tab"].as_u64().unwrap_or(0) as u32;
+                    self.send(json!({ "t": "dl", "kind": "start", "item": item }));
+                    self.store.downloads.insert(0, item);
+                }
+            }
+            Some(kind) => {
+                let Some(id) = ev["id"].as_u64().map(|i| i as u32) else { return };
+                if let Some(d) = self.store.downloads.iter_mut().find(|d| d.id == id) {
+                    d.total = ev["total"].as_u64().unwrap_or(d.total);
+                    d.received = ev["received"].as_u64().unwrap_or(d.received);
+                    if kind == "state" {
+                        d.state = ev["state"].as_str().unwrap_or("progress").to_string();
+                        d.reason = ev["reason"].as_str().unwrap_or("").to_string();
+                    }
+                    let item = d.clone();
+                    self.send(json!({ "t": "dl", "kind": kind, "item": item }));
+                    if kind == "state" && !item.active() {
+                        self.dl_ops.borrow_mut().remove(&id);
+                        self.store.save_downloads();
+                        // Les vues gardées pour ce téléchargement peuvent maintenant être libérées.
+                        let parked = std::mem::take(&mut self.parked);
+                        self.parked = parked.into_iter().filter(|(tab, _)| self.downloading(*tab)).collect();
+                    }
+                }
+            }
+            None => {}
+        }
+    }
+
+    fn dl_op(&self, id: u32) -> Option<ICoreWebView2DownloadOperation> {
+        self.dl_ops.borrow().get(&id).cloned()
+    }
+
+    fn dl_path(&self, id: u32) -> Option<String> {
+        self.store.downloads.iter().find(|d| d.id == id).map(|d| d.path.clone())
+    }
+
     fn push_bookmarks(&self) {
         let msg = json!({ "t": "favs", "items": self.store.bookmarks });
         self.send(msg.clone());
@@ -1280,15 +1399,22 @@ impl App {
         self.persist();
         self.shown = false;
         self.window.set_visible(false);
+        let busy: HashSet<u32> = self.tabs.iter().map(|t| t.id).filter(|&id| self.downloading(id)).collect();
+        let mut keep = Vec::new();
         for t in &mut self.tabs {
             if let Some(v) = t.view.take() {
                 if let Ok(u) = v.url() {
                     t.url = u;
                 }
+                if busy.contains(&t.id) {
+                    let _ = v.set_visible(false);
+                    keep.push((t.id, v));
+                }
             }
             t.suspended = false;
             t.received_prev = 0;
         }
+        self.parked.extend(keep);
         // Plus aucune vue web : le moteur WebView2 s'arrête complètement et rend toute sa
         // mémoire. Seul le petit processus Flux reste, pour le raccourci et l'icône.
         self.ui = None;
@@ -1450,6 +1576,7 @@ fn main() {
     };
 
     let session = store.load_session();
+    let dl_next = store.downloads.iter().map(|d| d.id).max().unwrap_or(0) + 1;
     let blocker_on = Arc::new(AtomicBool::new(settings.blocker));
     let mut app = App {
         window,
@@ -1472,6 +1599,9 @@ fn main() {
         blocked: Arc::new(AtomicU64::new(0)),
         cookie_block: Rc::new(RefCell::new(settings.cookie_block.clone())),
         host_cache: HashMap::new(),
+        dl_ops: Rc::default(),
+        dl_next: Rc::new(Cell::new(dl_next)),
+        parked: Vec::new(),
         suggest,
         hotkey,
         hotkey_status: (false, settings.hotkey.clone()),
@@ -1566,6 +1696,7 @@ fn main() {
                     app.send(v);
                 }
                 UserEvent::DeleteCookies(list, refresh) => app.delete_cookies(list, refresh),
+                UserEvent::Download(ev) => app.on_download(ev),
                 UserEvent::TrayOpen => app.show_window(),
                 UserEvent::MenuItem(id) => match id.as_str() {
                     "open" => app.show_window(),

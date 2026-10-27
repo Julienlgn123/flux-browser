@@ -159,6 +159,8 @@ pub struct Store {
     pub dir: PathBuf,
     pub history: HashMap<String, Visit>,
     pub bookmarks: Vec<Bookmark>,
+    /// Téléchargements récents (100 au plus), du plus récent au plus ancien.
+    pub downloads: Vec<crate::downloads::Item>,
     pub settings: Settings,
     pub dirty: bool,
 }
@@ -209,7 +211,13 @@ impl Store {
         let settings = load(dir.join("settings.json"));
         let history = list.into_iter().map(|v| (v.url.clone(), v)).collect();
         let bookmarks = load(dir.join("bookmarks.json"));
-        Self { dir, history, bookmarks, settings, dirty: true }
+        let mut downloads: Vec<crate::downloads::Item> = load(dir.join("downloads.json"));
+        // Un téléchargement resté « en cours » vient d'une session précédente : il a été interrompu.
+        for d in downloads.iter_mut().filter(|d| d.active()) {
+            d.state = "failed".into();
+            d.reason = "Interrompu".into();
+        }
+        Self { dir, history, bookmarks, downloads, settings, dirty: true }
     }
 
     pub fn webview_dir(&self) -> PathBuf {
@@ -277,6 +285,11 @@ impl Store {
 
     pub fn save_session(&self, s: &Session) {
         save(self.dir.join("session.json"), s, true);
+    }
+
+    pub fn save_downloads(&mut self) {
+        self.downloads.truncate(100);
+        save(self.dir.join("downloads.json"), &self.downloads, true);
     }
 
     pub fn save_bookmarks(&self) {

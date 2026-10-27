@@ -58,6 +58,44 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 #star.on { color: var(--accent); }
 #star.on svg { fill: currentColor; }
 
+/* Téléchargements */
+#dlbtn { position: relative; display: none; }
+#dlbtn.show { display: grid; }
+#dlbtn.active { color: var(--accent); }
+#dlbtn svg.ring { position: absolute; inset: 1px; width: 28px; height: 28px; transform: rotate(-90deg); pointer-events: none; }
+#dlbtn svg.ring circle { fill: none; stroke-width: 2.4; }
+#dlbtn.pulse { animation: dlpulse .9s ease 2; }
+@keyframes dlpulse { 50% { background: var(--accent-bg); transform: scale(1.12); } }
+#dlpanel { position: absolute; top: calc(var(--tabs-h) + var(--bar-h) - 4px); right: 8px; width: 390px; max-height: 470px; display: none; flex-direction: column;
+  background: var(--bar); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 14px 34px #0007; z-index: 20; overflow: hidden; }
+#dlpanel.open { display: flex; }
+.dl-head { display: flex; align-items: center; padding: 12px 14px 8px; font-weight: 600; }
+.dl-head .ib { margin-left: auto; width: 28px; height: 28px; }
+#dllist { overflow: auto; padding: 0 6px 6px; }
+.dli { display: flex; gap: 12px; align-items: center; padding: 9px 8px; border-radius: 9px; }
+.dli:hover { background: var(--tab); }
+.dli.done { cursor: pointer; }
+.dli .ficon { width: 32px; height: 38px; flex: none; border-radius: 5px; background: var(--tab-h); display: grid; place-items: end center; padding-bottom: 5px;
+  font-size: 9px; font-weight: 700; color: var(--dim); clip-path: polygon(0 0, 72% 0, 100% 22%, 100% 100%, 0 100%); }
+.dli.done .ficon { background: var(--accent-bg); color: var(--accent); }
+.dli .dlmain { flex: 1; min-width: 0; }
+.dli .dlname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dli.cancelled .dlname, .dli.failed .dlname { text-decoration: line-through; color: var(--dim); }
+.dli .dlsub { color: var(--dim); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.dli.failed .dlsub { color: #ff7a66; }
+.dli .bar { height: 4px; border-radius: 2px; background: var(--tab-h); margin-top: 6px; overflow: hidden; }
+.dli .bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .25s; }
+.dli.paused .bar i { background: var(--dim); }
+.dli .bar.indet i { width: 30% !important; animation: indet 1.2s linear infinite; }
+@keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.dli .acts { display: flex; gap: 2px; opacity: 0; }
+.dli:hover .acts, .dli.progress .acts, .dli.paused .acts { opacity: 1; }
+.dli .acts button { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--dim); }
+.dli .acts button:hover { background: var(--tab-h); color: var(--fg); }
+.dl-foot { display: flex; gap: 6px; padding: 8px 10px 10px; border-top: 1px solid var(--line); }
+.dl-foot .btn { flex: 1; font-size: 12px; }
+.dl-empty { color: var(--dim); padding: 18px 14px; }
+
 /* Barre de favoris */
 #favbar { height: 30px; display: none; align-items: center; gap: 2px; padding: 0 8px; background: var(--bar); border-bottom: 1px solid var(--line); overflow: hidden; }
 #favbar.show { display: flex; }
@@ -210,10 +248,16 @@ td.num, th.num { text-align: right; }
   <label id="omni"><button id="site-btn" title="Infos du site"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
     <input id="q" spellcheck="false" autocomplete="off" placeholder="Rechercher ou saisir une adresse">
     <button id="star" title="Ajouter aux favoris (Ctrl+D)"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button></label>
+  <button class="ib" id="dlbtn" title="Téléchargements (Ctrl+J)"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><svg class="ring" viewBox="0 0 30 30"><circle cx="15" cy="15" r="13" stroke="var(--line)" opacity="0"/><circle id="dlring" cx="15" cy="15" r="13" stroke="var(--accent)" stroke-dasharray="0 82" stroke-linecap="round"/></svg></button>
   <button class="pill" id="mem" title="Consommation en temps réel — cliquer pour le moniteur">—</button>
   <button class="pill" id="shield" title="Pubs et traqueurs bloqués"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><b id="nblock">0</b></button>
   <button class="ib" id="histbtn" title="Historique (Ctrl+H)"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
   <button class="ib" id="menu" title="Réglages"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+</div>
+<div id="dlpanel">
+  <div class="dl-head">Téléchargements<button class="ib" id="dl-folder-top" title="Ouvrir le dossier Téléchargements"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button></div>
+  <div id="dllist"></div>
+  <div class="dl-foot"><button class="btn" id="dl-folder">Ouvrir le dossier</button><button class="btn" id="dl-clear">Effacer la liste</button></div>
 </div>
 <div id="favbar"></div>
 <div id="drop"></div>
@@ -390,6 +434,7 @@ function syncHeight() {
   if (bh !== lastBar) { lastBar = bh; send({ t: 'bar', h: bh }); }
   let h = bh;
   if (panel || empty) h = null;
+  else if (dlOpen) h = Math.max(h, Math.ceil($('#dlpanel').getBoundingClientRect().bottom) + 16);
   else if ($('#drop').classList.contains('open')) h = bh + $('#drop').offsetHeight + 16;
   if (h !== lastH) { lastH = h; send({ t: 'height', h }); }
   const ntp = empty && !panel;
@@ -734,6 +779,105 @@ function renderSite() {
   });
 }
 
+/* ---------- téléchargements ---------- */
+let dls = [], dlOpen = false, dlAutoClose = null;
+const dlSpeed = {};
+const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>';
+const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg>';
+const ICON_FOLDER = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_RETRY = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>';
+function fmtDur(s) {
+  if (!isFinite(s) || s <= 0) return '';
+  if (s < 60) return Math.ceil(s) + ' s';
+  if (s < 3600) return Math.ceil(s / 60) + ' min';
+  return (s / 3600).toFixed(1).replace('.0', '') + ' h';
+}
+function dlStatus(d) {
+  const of = d.total ? `${fmtBytes(d.received)} sur ${fmtBytes(d.total)}` : fmtBytes(d.received);
+  if (d.state === 'progress') {
+    const sp = dlSpeed[d.id] ? dlSpeed[d.id].rate : 0;
+    const left = d.total && sp ? fmtDur((d.total - d.received) / sp) : '';
+    return [of, sp ? fmtRate(sp) : '', left && left + ' restantes'].filter(Boolean).join(' · ');
+  }
+  if (d.state === 'paused') return 'En pause · ' + of;
+  if (d.state === 'done') return `${fmtBytes(d.total || d.received)} · ${host(d.url) || 'terminé'}`;
+  if (d.state === 'cancelled') return 'Annulé';
+  return 'Échec' + (d.reason ? ' : ' + d.reason : '');
+}
+function renderDownloads() {
+  const active = dls.filter(d => d.state === 'progress' || d.state === 'paused');
+  const btn = $('#dlbtn');
+  btn.classList.toggle('show', dls.length > 0);
+  btn.classList.toggle('active', active.length > 0);
+  const tot = active.reduce((a, d) => a + (d.total || 0), 0), got = active.reduce((a, d) => a + (d.total ? d.received : 0), 0);
+  const frac = active.length ? (tot ? got / tot : 0.15) : 0;
+  $('#dlring').setAttribute('stroke-dasharray', `${(frac * 81.7).toFixed(1)} 82`);
+  $('#dlring').style.opacity = active.length ? 1 : 0;
+  btn.title = active.length ? `${active.length} téléchargement(s) en cours (Ctrl+J)` : 'Téléchargements (Ctrl+J)';
+  if (!dlOpen) return;
+  $('#dllist').innerHTML = dls.length ? dls.slice(0, 50).map(d => {
+    const ext = (d.name.match(/\.([a-z0-9]{1,5})$/i) || [, ''])[1].toUpperCase();
+    const pct = d.total ? Math.min(100, d.received / d.total * 100) : 0;
+    const acts = d.state === 'progress' ? `<button data-a="dl_pause" title="Pause">${ICON_PAUSE}</button><button data-a="dl_cancel" title="Annuler">${ICON_CLOSE}</button>`
+      : d.state === 'paused' ? `<button data-a="dl_resume" title="Reprendre">${ICON_PLAY}</button><button data-a="dl_cancel" title="Annuler">${ICON_CLOSE}</button>`
+      : d.state === 'done' ? `<button data-a="dl_show" title="Afficher dans le dossier">${ICON_FOLDER}</button><button data-a="dl_remove" title="Retirer de la liste">${ICON_CLOSE}</button>`
+      : `<button data-a="retry" title="Réessayer">${ICON_RETRY}</button><button data-a="dl_remove" title="Retirer de la liste">${ICON_CLOSE}</button>`;
+    const bar = d.state === 'progress' || d.state === 'paused' ? `<div class="bar${d.total ? '' : ' indet'}"><i style="width:${pct.toFixed(1)}%"></i></div>` : '';
+    return `<div class="dli ${d.state}" data-id="${d.id}" title="${esc(d.path)}"><span class="ficon">${esc(ext)}</span>` +
+      `<div class="dlmain"><div class="dlname">${esc(d.name || bare(d.url))}</div><div class="dlsub">${esc(dlStatus(d))}</div>${bar}</div><div class="acts">${acts}</div></div>`;
+  }).join('') : '<div class="dl-empty">Aucun téléchargement.</div>';
+  syncHeight();
+}
+function setDl(open, auto) {
+  dlOpen = open;
+  clearTimeout(dlAutoClose);
+  $('#dlpanel').classList.toggle('open', open);
+  if (open) renderDownloads();
+  // Ouvert automatiquement au début d'un téléchargement : se referme seul, comme Chrome.
+  if (open && auto) dlAutoClose = setTimeout(() => { if (!$('#dlpanel').matches(':hover')) setDl(false); }, 5000);
+  syncHeight();
+}
+$('#dlbtn').onclick = () => setDl(!dlOpen);
+$('#dl-folder').onclick = $('#dl-folder-top').onclick = () => send({ t: 'dl_folder' });
+$('#dl-clear').onclick = () => { dls = dls.filter(d => d.state === 'progress' || d.state === 'paused'); send({ t: 'dl_clear' }); renderDownloads(); };
+$('#dllist').onclick = e => {
+  const row = e.target.closest('.dli');
+  if (!row) return;
+  const id = +row.dataset.id, d = dls.find(x => x.id === id), b = e.target.closest('button');
+  if (b) {
+    const a = b.dataset.a;
+    if (a === 'retry') { send({ t: 'new', url: d.url }); return; }
+    if (a === 'dl_remove') { dls = dls.filter(x => x.id !== id); renderDownloads(); }
+    send({ t: a, id });
+  } else if (d && d.state === 'done') send({ t: 'dl_open', id });
+};
+document.addEventListener('mousedown', e => { if (dlOpen && !e.target.closest('#dlpanel, #dlbtn')) setDl(false); });
+addEventListener('blur', () => { if (dlOpen && !$('#dlpanel').matches(':hover')) setDl(false); });
+function onDownload(m) {
+  const d = m.item;
+  if (m.kind === 'start') {
+    dls.unshift(d);
+    dlSpeed[d.id] = { at: performance.now(), got: d.received, rate: 0 };
+    $('#dlbtn').classList.remove('pulse'); void $('#dlbtn').offsetWidth; $('#dlbtn').classList.add('pulse');
+    renderDownloads();
+    setDl(true, true);
+    return;
+  }
+  const i = dls.findIndex(x => x.id === d.id);
+  if (i < 0) dls.unshift(d); else dls[i] = d;
+  const s = dlSpeed[d.id], now = performance.now();
+  if (s && d.state === 'progress') {
+    const dt = (now - s.at) / 1000;
+    if (dt > 0.2) {
+      const inst = (d.received - s.got) / dt;
+      s.rate = s.rate ? s.rate * 0.7 + inst * 0.3 : inst;
+      s.at = now; s.got = d.received;
+    }
+  }
+  renderDownloads();
+}
+
 /* ---------- historique ---------- */
 let histItems = [], histShown = 300;
 const ICON_DEL = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -953,6 +1097,7 @@ addEventListener('keydown', e => {
   else if (c && e.shiftKey && k === 'escape') { e.preventDefault(); openPanel('monitor'); return; }
   else if (c && k === 'd') { e.preventDefault(); toggleFav(); return; }
   else if (c && k === 'h') { e.preventDefault(); openPanel('history'); return; }
+  else if (c && k === 'j') { e.preventDefault(); setDl(!dlOpen); return; }
   else if (c && k === 'i') { e.preventDefault(); if (currentUrl()) openPanel('site'); return; }
   else if (e.altKey && k === 'arrowleft') { e.preventDefault(); send({ t: 'back' }); return; }
   else if (e.altKey && k === 'arrowright') { e.preventDefault(); send({ t: 'forward' }); return; }
@@ -987,6 +1132,9 @@ window.flux = m => {
       if (panel === 'site') renderSite();
       break;
     }
+    case 'dl': onDownload(m); break;
+    case 'dl_list': dls = m.items; renderDownloads(); break;
+    case 'dl_toggle': setDl(!dlOpen); break;
     case 'history': histItems = m.items; histShown = 300; renderHistory(); break;
     case 'sugg': {
       const o = activeOmni;

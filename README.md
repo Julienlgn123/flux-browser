@@ -51,6 +51,11 @@ Configuration requise : Windows 10 ou 11 (64 bits) avec le moteur WebView2, déj
 - Page d'accueil épurée : logo et grande barre de recherche, sur un fond au choix (image, GIF ou vidéo locale, lue par morceaux et en pause dès qu'elle n'est pas visible), avec assombrissement réglable.
 - Favoris : étoile dans la barre d'adresse ou Ctrl+D, barre de favoris, gestion (renommer, réordonner, supprimer), prioritaires dans les suggestions ; stockés chiffrés.
 
+## Téléchargements (Ctrl+J)
+- Bouton dans la barre avec anneau de progression ; menu déroulant façon Chrome ouvert automatiquement au début d'un téléchargement.
+- Progression, vitesse, temps restant ; pause, reprise, annulation, réessai ; ouvrir le fichier ou l'afficher dans le dossier.
+- Un téléchargement continue même si l'onglet est fermé ou si la fenêtre passe en arrière-plan. Liste des 100 derniers conservée (chiffrée).
+
 ## Infos du site (cadenas de la barre d'adresse ou Ctrl+I)
 - Connexion : IP du serveur, port, protocole (HTTP/2, HTTP/3), version TLS, chiffrement, code HTTP.
 - Hébergement : opérateur / AS, ville, pays (via ipinfo.io, uniquement à l'ouverture du panneau).
