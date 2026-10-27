@@ -1,11 +1,13 @@
 //! Barre de recherche rapide : s'ouvre en haut de l'écran avec le raccourci global,
 //! même quand le navigateur est fermé (Flux reste dans la zone de notification).
+//!
+//! Sa vue web n'existe que pendant qu'elle est affichée : fermée, elle ne coûte rien.
 
 use tao::{
     dpi::{LogicalSize, PhysicalPosition},
     event_loop::{EventLoopProxy, EventLoopWindowTarget},
     platform::windows::{WindowBuilderExtWindows, WindowExtWindows},
-    window::{Window, WindowBuilder},
+    window::{Theme, Window, WindowBuilder},
 };
 use windows::Win32::{
     Foundation::HWND,
@@ -25,18 +27,15 @@ const TOP: f64 = 18.0;
 
 pub struct QuickBar {
     pub window: Window,
-    pub view: WebView,
+    pub view: Option<WebView>,
+    html: String,
+    args: String,
+    proxy: EventLoopProxy<UserEvent>,
     height: f64,
 }
 
 impl QuickBar {
-    pub fn new(
-        target: &EventLoopWindowTarget<UserEvent>,
-        ctx: &mut WebContext,
-        args: &str,
-        html: &str,
-        proxy: EventLoopProxy<UserEvent>,
-    ) -> Self {
+    pub fn new(target: &EventLoopWindowTarget<UserEvent>, args: &str, html: String, proxy: EventLoopProxy<UserEvent>) -> Self {
         let window = WindowBuilder::new()
             .with_title("Flux — recherche rapide")
             .with_decorations(false)
@@ -56,22 +55,7 @@ impl QuickBar {
                 std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
             );
         }
-        let view = WebViewBuilder::new_with_web_context(ctx)
-            .with_html(html)
-            .with_bounds(Rect {
-                position: WryLogicalPosition::new(0.0, 0.0).into(),
-                size: WryLogicalSize::new(WIDTH, BASE_H).into(),
-            })
-            .with_additional_browser_args(args)
-            .with_hotkeys_zoom(false)
-            .with_default_context_menus(false)
-            .with_background_color((24, 24, 27, 255))
-            .with_ipc_handler(move |r| {
-                let _ = proxy.send_event(UserEvent::Bar(r.body().clone()));
-            })
-            .build_as_child(&window)
-            .expect("création de la vue de la barre rapide");
-        Self { window, view, height: BASE_H }
+        Self { window, view: None, html, args: args.to_string(), proxy, height: BASE_H }
     }
 
     pub fn visible(&self) -> bool {
@@ -79,7 +63,7 @@ impl QuickBar {
     }
 
     /// Affiche la barre en haut de l'écran où se trouve la souris.
-    pub fn show(&self) {
+    pub fn show(&mut self, ctx: &mut WebContext, theme: Option<Theme>) {
         let monitor = self
             .window
             .cursor_position()
@@ -93,15 +77,39 @@ impl QuickBar {
             let y = pos.y as f64 + TOP * scale;
             self.window.set_outer_position(PhysicalPosition::new(x, y));
         }
+        self.height = BASE_H;
+        self.window.set_inner_size(LogicalSize::new(WIDTH, BASE_H));
+        self.window.set_theme(theme);
+        if self.view.is_none() {
+            let proxy = self.proxy.clone();
+            let bg = if theme == Some(Theme::Light) { (255, 255, 255, 255) } else { (24, 24, 27, 255) };
+            self.view = WebViewBuilder::new_with_web_context(ctx)
+                .with_html(&self.html)
+                .with_bounds(Rect {
+                    position: WryLogicalPosition::new(0.0, 0.0).into(),
+                    size: WryLogicalSize::new(WIDTH, BASE_H).into(),
+                })
+                .with_additional_browser_args(&self.args)
+                .with_hotkeys_zoom(false)
+                .with_default_context_menus(false)
+                .with_background_color(bg)
+                .with_ipc_handler(move |r| {
+                    let _ = proxy.send_event(UserEvent::Bar(r.body().clone()));
+                })
+                .build_as_child(&self.window)
+                .ok();
+        }
         self.window.set_visible(true);
         self.window.set_focus();
-        let _ = self.view.focus();
-        let _ = self.view.evaluate_script("openBar()");
+        if let Some(v) = &self.view {
+            let _ = v.focus();
+        }
     }
 
-    pub fn hide(&self) {
+    /// Masque la barre et libère sa vue web.
+    pub fn hide(&mut self) {
         self.window.set_visible(false);
-        let _ = self.view.evaluate_script("closeBar()");
+        self.view = None;
     }
 
     pub fn resize(&mut self, h: f64) {
@@ -111,13 +119,17 @@ impl QuickBar {
         }
         self.height = h;
         self.window.set_inner_size(LogicalSize::new(WIDTH, h));
-        let _ = self.view.set_bounds(Rect {
-            position: WryLogicalPosition::new(0.0, 0.0).into(),
-            size: WryLogicalSize::new(WIDTH, h).into(),
-        });
+        if let Some(v) = &self.view {
+            let _ = v.set_bounds(Rect {
+                position: WryLogicalPosition::new(0.0, 0.0).into(),
+                size: WryLogicalSize::new(WIDTH, h).into(),
+            });
+        }
     }
 
     pub fn send(&self, msg: &serde_json::Value) {
-        let _ = self.view.evaluate_script(&format!("flux({msg})"));
+        if let Some(v) = &self.view {
+            let _ = v.evaluate_script(&format!("flux({msg})"));
+        }
     }
 }

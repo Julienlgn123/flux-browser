@@ -42,9 +42,13 @@ pub struct Settings {
     pub show_nav: bool,
     pub show_stats: bool,
     pub show_shield: bool,
-    pub ntp_sites: bool,
     /// Fond de la page nouvel onglet : couleur CSS ou adresse d'image.
     pub ntp_bg: String,
+    /// Fichier de fond choisi par l'utilisateur (image, GIF ou vidéo), copié dans le dossier Flux.
+    pub ntp_media: String,
+    /// Assombrissement du fond, en % (lisibilité de la barre de recherche).
+    pub ntp_dim: u32,
+    pub show_favbar: bool,
     /// Feuille de style appliquée à l'interface (personnalisation libre).
     pub custom_css: String,
     /// Zoom par défaut des pages, en %.
@@ -54,7 +58,7 @@ pub struct Settings {
     /// "restore", "newtab" ou "home".
     pub startup: String,
     pub home_url: String,
-    /// Raccourci global de la barre de recherche, ex. "Ctrl+Alt+F".
+    /// Raccourci global de la barre de recherche, ex. "Ctrl+Shift+X".
     pub hotkey: String,
     /// Fermer la fenêtre laisse Flux dans la zone de notification.
     pub background: bool,
@@ -100,13 +104,15 @@ impl Default for Settings {
             show_nav: true,
             show_stats: true,
             show_shield: true,
-            ntp_sites: true,
             ntp_bg: String::new(),
+            ntp_media: String::new(),
+            ntp_dim: 25,
+            show_favbar: true,
             custom_css: String::new(),
             zoom: 100,
             startup: "restore".into(),
             home_url: String::new(),
-            hotkey: "Ctrl+Alt+F".into(),
+            hotkey: "Ctrl+Shift+X".into(),
             background: true,
             autostart: true,
             passwords: true,
@@ -115,14 +121,20 @@ impl Default for Settings {
             reject_cookies: true,
             dns: "cloudflare".into(),
             blocker: true,
-            sleep_min: 5,
-            discard_min: 60,
+            sleep_min: 3,
+            discard_min: 30,
             ram_limit: 0,
             cpu_limit: 0,
             net_limit: 0,
             eco: false,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Bookmark {
+    pub url: String,
+    pub title: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -140,6 +152,7 @@ pub struct SessionTab {
 pub struct Store {
     pub dir: PathBuf,
     pub history: HashMap<String, Visit>,
+    pub bookmarks: Vec<Bookmark>,
     pub settings: Settings,
     pub dirty: bool,
 }
@@ -184,7 +197,8 @@ impl Store {
         let list: Vec<Visit> = load(dir.join("history.json"));
         let settings = load(dir.join("settings.json"));
         let history = list.into_iter().map(|v| (v.url.clone(), v)).collect();
-        Self { dir, history, settings, dirty: true }
+        let bookmarks = load(dir.join("bookmarks.json"));
+        Self { dir, history, bookmarks, settings, dirty: true }
     }
 
     pub fn webview_dir(&self) -> PathBuf {
@@ -239,6 +253,10 @@ impl Store {
 
     pub fn save_session(&self, s: &Session) {
         save(self.dir.join("session.json"), s, true);
+    }
+
+    pub fn save_bookmarks(&self) {
+        save(self.dir.join("bookmarks.json"), &self.bookmarks, true);
     }
 
     pub fn save_settings(&self) {

@@ -189,3 +189,36 @@ pub fn set_autostart(enabled: bool) {
         }
     }
 }
+
+/* ---------- choix d'un fichier de fond ---------- */
+
+/// Boîte de dialogue Windows « Ouvrir » limitée aux images, GIF et vidéos.
+pub fn pick_media(owner: isize) -> Option<std::path::PathBuf> {
+    use windows::{
+        core::{PCWSTR, PWSTR},
+        Win32::{
+            Foundation::HWND,
+            UI::Controls::Dialogs::{GetOpenFileNameW, OFN_EXPLORER, OFN_FILEMUSTEXIST, OFN_NOCHANGEDIR, OFN_PATHMUSTEXIST, OPENFILENAMEW},
+        },
+    };
+    let filter: Vec<u16> = "Images, GIF et vidéos\0*.png;*.jpg;*.jpeg;*.gif;*.webp;*.avif;*.bmp;*.mp4;*.webm;*.mov;*.m4v\0Tous les fichiers\0*.*\0\0"
+        .encode_utf16()
+        .collect();
+    let title: Vec<u16> = "Choisir le fond de la page d'accueil\0".encode_utf16().collect();
+    let mut file = vec![0u16; 4096];
+    let mut ofn = OPENFILENAMEW {
+        lStructSize: std::mem::size_of::<OPENFILENAMEW>() as u32,
+        hwndOwner: HWND(owner as _),
+        lpstrFilter: PCWSTR(filter.as_ptr()),
+        lpstrFile: PWSTR(file.as_mut_ptr()),
+        nMaxFile: file.len() as u32,
+        lpstrTitle: PCWSTR(title.as_ptr()),
+        Flags: OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR,
+        ..Default::default()
+    };
+    if !unsafe { GetOpenFileNameW(&mut ofn) }.as_bool() {
+        return None;
+    }
+    let len = file.iter().position(|&c| c == 0).unwrap_or(0);
+    Some(String::from_utf16_lossy(&file[..len]).into())
+}

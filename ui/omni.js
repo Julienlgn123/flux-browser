@@ -1,5 +1,5 @@
 // Logique de recherche partagée par la barre d'adresse et la barre de recherche rapide.
-// Chaque page déclare les globales `settings` (réglages) et `hist` (Map url → visite).
+// Chaque page déclare les globales `settings` (réglages), `hist` (Map url → visite) et `favs` (favoris).
 const ENGINES = {
   google: 'https://www.google.com/search?q=%s', duckduckgo: 'https://duckduckgo.com/?q=%s',
   brave: 'https://search.brave.com/search?q=%s', bing: 'https://www.bing.com/search?q=%s',
@@ -110,6 +110,14 @@ function suggestionRows(typed, completed, remote, max = 10) {
   const bang = bangOf(q);
   rows.push({ icon: 'search', main: q, sub: bang ? host(fill(bang.tpl, 'x')) : 'Rechercher', url: toUrl(q) });
   const seen = new Set(rows.map(r => r.url));
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  for (const f of favs) {
+    if (rows.length >= 5) break;
+    const hay = (bare(f.url) + ' ' + f.title).toLowerCase();
+    if (!words.every(w => hay.includes(w)) || seen.has(f.url)) continue;
+    seen.add(f.url);
+    rows.push({ icon: 'hist', fav: f.url, main: f.title || bare(f.url), sub: '★ ' + bare(f.url), url: f.url });
+  }
   for (const v of localMatches(q)) {
     if (seen.has(v.url)) continue; seen.add(v.url);
     rows.push({ icon: 'hist', fav: v.url, main: v.title || bare(v.url), sub: bare(v.url), url: v.url });

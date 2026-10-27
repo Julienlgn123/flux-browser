@@ -6,7 +6,7 @@
 <style>
 :root {
   --accent: #ff5b2e; --accent-bg: #ff5b2e22; --ok: #2fbf7a; --warn: #e5a100;
-  --tabs-h: 36px; --bar-h: 42px; --top: calc(var(--tabs-h) + var(--bar-h));
+  --tabs-h: 36px; --bar-h: 42px; --fav-h: 0px; --top: calc(var(--tabs-h) + var(--bar-h) + var(--fav-h));
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 [data-theme=dark] { --bg: #18181b; --bar: #202024; --tab: #2a2a2f; --tab-h: #323238; --line: #34343a; --fg: #ececf1; --dim: #9a9aa5; --field: #141417; }
@@ -53,6 +53,20 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 #shield.on { color: var(--ok); }
 #mem.limited { color: var(--warn); }
 
+#star { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--dim); margin-right: -6px; }
+#star:hover { background: var(--tab-h); color: var(--fg); }
+#star.on { color: var(--accent); }
+#star.on svg { fill: currentColor; }
+
+/* Barre de favoris */
+#favbar { height: 30px; display: none; align-items: center; gap: 2px; padding: 0 8px; background: var(--bar); border-bottom: 1px solid var(--line); overflow: hidden; }
+#favbar.show { display: flex; }
+.fb { max-width: 180px; height: 24px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 6px; color: var(--fg); font-size: 12px; flex: none; }
+.fb:hover { background: var(--tab-h); }
+.fb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fb .fav { width: 14px; height: 14px; font-size: 9px; }
+.fb .fav img { width: 14px; height: 14px; }
+
 /* Suggestions */
 #drop { position: absolute; left: 0; right: 0; top: var(--top); background: var(--bar); border-bottom: 1px solid var(--line); padding: 4px 0 6px; display: none; box-shadow: 0 12px 24px #0006; }
 #drop.open { display: block; }
@@ -64,18 +78,22 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .row svg { color: var(--dim); }
 .row kbd { margin-left: auto; color: var(--dim); font: 11px var(--font); }
 
-/* Nouvel onglet */
-#ntp { position: absolute; inset: var(--top) 0 0; display: none; flex-direction: column; align-items: center; padding-top: 14vh; gap: 28px; background-size: cover; background-position: center; }
+/* Nouvel onglet : logo + barre de recherche, sur un fond personnalisable */
+#ntp { position: absolute; inset: var(--top) 0 0; display: none; flex-direction: column; align-items: center; padding-top: 22vh; gap: 30px; background-size: cover; background-position: center; overflow: hidden; }
 #ntp.show { display: flex; }
-#ntp h1 { display: flex; align-items: center; gap: 16px; font: 600 44px var(--font); letter-spacing: -1px; }
+#ntp-media-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+#ntp-dim { position: absolute; inset: 0; background: #000; pointer-events: none; }
+#ntp h1 { position: relative; display: flex; align-items: center; gap: 16px; font: 600 44px var(--font); letter-spacing: -1px; }
+#ntp.media h1 { color: #fff; text-shadow: 0 2px 12px #0008; }
 #ntp h1 .logo { width: 38px; height: 48px; stroke: var(--accent); stroke-width: 76; }
-#ntp p { color: var(--dim); }
-#sites { display: grid; grid-template-columns: repeat(4, 108px); gap: 12px; }
-.site { height: 92px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: var(--bar); padding: 0 8px; }
-.site:hover { background: var(--tab); }
-.site .fav { width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
-.site .fav img { width: 24px; height: 24px; }
-.site span { max-width: 100%; color: var(--dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ntp-box { position: relative; width: min(640px, calc(100% - 32px)); }
+#ntp-search { height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-radius: 26px; background: var(--field); border: 1px solid var(--line); box-shadow: 0 8px 30px #0003; }
+#ntp-search:focus-within { border-color: var(--accent); }
+#ntp-search svg { width: 18px; height: 18px; color: var(--dim); }
+#ntp-q { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--fg); font: 16px var(--font); user-select: text; }
+#ntp-drop { position: absolute; left: 0; right: 0; top: 58px; background: var(--field); border: 1px solid var(--line); border-radius: 16px; padding: 6px 0; display: none; box-shadow: 0 12px 30px #0005; }
+#ntp-drop.open { display: block; }
+#ntp-drop .row { padding: 0 14px; }
 
 /* Panneaux (réglages, moniteur) */
 .panel-wrap { position: absolute; inset: var(--top) 0 0; background: var(--bg); display: none; overflow: auto; }
@@ -95,6 +113,10 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .opt select, .opt input[type=number], .opt input[type=text], .opt textarea { background: var(--field); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; font: inherit; user-select: text; }
 .opt input[type=number] { width: 80px; }
 .opt input[type=text] { width: 300px; }
+.favrow { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.favrow:first-child { border-top: 0; }
+.favrow input { flex: 1; min-width: 0; }
+.favrow input.t { flex: .6; }
 .opt textarea { width: 100%; min-height: 110px; font: 12px Consolas, monospace; resize: vertical; }
 .opt.col { flex-direction: column; align-items: stretch; }
 .opt input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
@@ -139,14 +161,24 @@ td.num, th.num { text-align: right; }
   <button class="ib" id="reload" title="Actualiser (F5)"></button>
   </span>
   <label id="omni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-    <input id="q" spellcheck="false" autocomplete="off" placeholder="Rechercher ou saisir une adresse"></label>
+    <input id="q" spellcheck="false" autocomplete="off" placeholder="Rechercher ou saisir une adresse">
+    <button id="star" title="Ajouter aux favoris (Ctrl+D)"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button></label>
   <button class="pill" id="mem" title="Consommation en temps réel — cliquer pour le moniteur">—</button>
   <button class="pill" id="shield" title="Pubs et traqueurs bloqués"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><b id="nblock">0</b></button>
   <button class="ib" id="menu" title="Réglages"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
+<div id="favbar"></div>
 <div id="drop"></div>
-<div id="ntp"><h1><svg class="logo" viewBox="152 96 258 322"><path d="M190 380V210a76 76 0 0 1 76-76h106"/><path d="M278 266h70"/></svg>Flux</h1>
-  <p>Tapez pour chercher · <b>!yt</b>, <b>!w</b>, <b>!gh</b>… pour cibler un site · <b id="ntp-hotkey"></b> partout dans Windows</p><div id="sites"></div></div>
+<div id="ntp">
+  <video id="ntp-media-video" muted loop playsinline class="hidden"></video>
+  <div id="ntp-dim"></div>
+  <h1><svg class="logo" viewBox="152 96 258 322"><path d="M190 380V210a76 76 0 0 1 76-76h106"/><path d="M278 266h70"/></svg>Flux</h1>
+  <div id="ntp-box">
+    <label id="ntp-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="ntp-q" spellcheck="false" autocomplete="off" placeholder="Rechercher sur le web ou saisir une adresse"></label>
+    <div id="ntp-drop"></div>
+  </div>
+</div>
 
 <!-- Moniteur de consommation -->
 <div class="panel-wrap" id="monitor"><div class="content" style="max-width:1100px;margin:0 auto">
@@ -178,6 +210,7 @@ td.num, th.num { text-align: right; }
   <nav class="side" id="side">
     <button data-sec="look" class="on">Apparence</button>
     <button data-sec="search">Recherche</button>
+    <button data-sec="favs">Favoris</button>
     <button data-sec="accounts">Comptes et sécurité</button>
     <button data-sec="perf">Performance</button>
     <button data-sec="quick">Raccourci et démarrage</button>
@@ -193,9 +226,11 @@ td.num, th.num { text-align: right; }
     <div class="opt"><div>Boutons précédent / suivant / actualiser</div><input type="checkbox" data-k="show_nav"></div>
     <div class="opt"><div>Compteur de consommation dans la barre</div><input type="checkbox" data-k="show_stats"></div>
     <div class="opt"><div>Bouclier du bloqueur dans la barre</div><input type="checkbox" data-k="show_shield"></div>
-    <h3>Nouvel onglet</h3>
-    <div class="opt"><div>Afficher les sites les plus visités</div><input type="checkbox" data-k="ntp_sites"></div>
-    <div class="opt"><div>Fond<small>Couleur CSS (ex. #1d2b3a) ou adresse d'une image</small></div><input type="text" data-k="ntp_bg" placeholder="Par défaut"></div>
+    <div class="opt"><div>Barre de favoris</div><input type="checkbox" data-k="show_favbar"></div>
+    <h3>Page d'accueil</h3>
+    <div class="opt"><div>Fond : image, GIF ou vidéo<small id="media-name">Aucun fichier choisi</small></div><button class="btn" id="pick-media">Choisir un fichier…</button><button class="btn" id="clear-media">Retirer</button></div>
+    <div class="opt"><div>Assombrir le fond<small>Rend la barre de recherche plus lisible</small></div><input type="range" min="0" max="80" step="5" data-k="ntp_dim"><output data-o="ntp_dim"></output></div>
+    <div class="opt"><div>Ou une couleur / adresse d'image<small>Couleur CSS (ex. #1d2b3a) ou https://… · utilisé sans fichier</small></div><input type="text" data-k="ntp_bg" placeholder="Par défaut"></div>
     <div class="opt"><div>Zoom par défaut des pages</div><select data-k="zoom" data-num><option>67</option><option>75</option><option>80</option><option>90</option><option>100</option><option>110</option><option>125</option><option>150</option></select> %</div>
   </div>
 
@@ -207,6 +242,13 @@ td.num, th.num { text-align: right; }
     <div class="opt"><div>Suggestions en ligne<small>Envoie la frappe au moteur pour proposer des requêtes</small></div><input type="checkbox" data-k="suggestions"></div>
     <div class="opt col"><div>Bangs personnels<small>Un par ligne : <code>clé=https://site.com/recherche?q=%s</code>, puis tapez « !clé recherche ». Intégrés : !g !d !b !yt !w !gh !a !r !m !i !tr !so !npm !rs !tw !gm</small></div>
       <textarea data-k="bangs" placeholder="lbc=https://www.leboncoin.fr/recherche?text=%s"></textarea></div>
+  </div>
+
+  <div class="sec" id="sec-favs">
+    <h2>Favoris</h2>
+    <p>Étoile dans la barre d'adresse ou Ctrl+D pour ajouter la page. Les favoris apparaissent dans la barre de favoris et en premier dans les suggestions.</p>
+    <div class="opt col" id="fav-list"></div>
+    <div class="opt"><div>Ajouter un favori</div><button class="btn" id="fav-add">Ajouter la page actuelle</button><button class="btn" id="fav-new">Nouveau…</button></div>
   </div>
 
   <div class="sec" id="sec-accounts">
@@ -273,12 +315,12 @@ const ICON_X = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 const ICON_RELOAD = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>';
 const ACCENTS = ['#ff5b2e', '#e5484d', '#d6409f', '#8e4ec6', '#3e63dd', '#0091ff', '#12a594', '#30a46c', '#f5a524'];
 
-let tabs = [], active = 0, settings = {}, hist = new Map(), hotkeyOk = true;
-let rows = [], sel = 0, gen = 0, typed = '', remote = [], panel = null, lastH, lastBar;
+let tabs = [], active = 0, settings = {}, hist = new Map(), favs = [], hotkeyOk = true;
+let gen = 0, panel = null, lastH, lastBar, activeOmni = null;
 
 const fmtMem = b => { const mb = b / 1048576; return mb >= 1024 ? (mb / 1024).toFixed(2) + ' Go' : Math.round(mb) + ' Mo'; };
 const fmtRate = b => b < 1024 ? Math.round(b) + ' o/s' : b < 1048576 ? (b / 1024).toFixed(0) + ' Ko/s' : (b / 1048576).toFixed(1) + ' Mo/s';
-const barPx = () => $('#tabs').offsetHeight + $('#bar').offsetHeight;
+const barPx = () => $('#tabs').offsetHeight + $('#bar').offsetHeight + $('#favbar').offsetHeight;
 
 /* ---------- hauteur de l'interface ---------- */
 function syncHeight() {
@@ -290,8 +332,13 @@ function syncHeight() {
   if (panel || empty) h = null;
   else if ($('#drop').classList.contains('open')) h = bh + $('#drop').offsetHeight + 16;
   if (h !== lastH) { lastH = h; send({ t: 'height', h }); }
-  $('#ntp').classList.toggle('show', empty && !panel);
+  const ntp = empty && !panel;
+  $('#ntp').classList.toggle('show', ntp);
+  // La vidéo de fond ne tourne que quand la page d'accueil est visible.
+  const v = $('#ntp-media-video');
+  if (v.src) ntp && !document.hidden ? v.play().catch(() => {}) : v.pause();
 }
+document.addEventListener('visibilitychange', syncHeight);
 
 /* ---------- onglets ---------- */
 function renderTabs() {
@@ -309,6 +356,7 @@ function renderTabs() {
   }
   const t = tabs.find(t => t.id === active);
   if (document.activeElement !== $('#q')) $('#q').value = t ? t.url : '';
+  renderStar();
   $('#reload').innerHTML = t && t.loading ? ICON_X : ICON_RELOAD;
   document.title = (t && t.title) || 'Flux';
   syncHeight();
@@ -319,81 +367,129 @@ $('#back').onclick = () => send({ t: 'back' });
 $('#fwd').onclick = () => send({ t: 'forward' });
 $('#reload').onclick = () => { const t = tabs.find(t => t.id === active); send({ t: t && t.loading ? 'stop' : 'reload' }); };
 
-/* ---------- omnibox ---------- */
-function buildRows() {
-  const input = $('#q');
-  const completed = input.selectionStart === typed.length && input.value.length > typed.length ? input.value : null;
-  rows = suggestionRows(typed, completed, remote);
+/* ---------- omnibox (barre d'adresse et recherche de la page d'accueil) ---------- */
+function makeOmni(input, drop, opts = {}) {
+  const o = { rows: [], sel: 0, typed: '', remote: [], gen: 0 };
+  o.build = () => {
+    const completed = input.selectionStart === o.typed.length && input.value.length > o.typed.length ? input.value : null;
+    o.rows = suggestionRows(o.typed, completed, o.remote);
+  };
+  o.render = () => {
+    o.sel = Math.min(o.sel, Math.max(o.rows.length - 1, 0));
+    drop.innerHTML = o.rows.map((r, i) => rowHtml(r, i, o.sel)).join('');
+    drop.classList.toggle('open', o.rows.length > 0 && document.activeElement === input);
+    syncHeight();
+  };
+  o.close = () => { o.rows = []; o.remote = []; o.render(); };
+  o.focus = () => { input.focus(); input.select(); o.typed = ''; };
+  drop.onmousedown = e => {
+    e.preventDefault();
+    const r = e.target.closest('.row');
+    if (r) go(o.rows[+r.dataset.i].url, e.button === 1 || e.ctrlKey);
+  };
+  let debounce;
+  input.addEventListener('input', e => {
+    o.typed = input.value;
+    if (e.inputType === 'insertText' && input.selectionStart === input.value.length) {
+      const c = inlineComplete(o.typed);
+      if (c) { input.value = o.typed + c.slice(o.typed.length); input.setSelectionRange(o.typed.length, input.value.length); }
+    }
+    o.sel = 0;
+    o.remote = o.remote.filter(x => x.toLowerCase().startsWith(o.typed.trim().toLowerCase()));
+    o.build(); o.render();
+    clearTimeout(debounce);
+    if (wantsRemote(o.typed.trim())) {
+      o.gen = ++gen; activeOmni = o;
+      const g = o.gen, q = o.typed.trim();
+      debounce = setTimeout(() => send({ t: 'suggest', gen: g, q }), 40);
+    }
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!o.rows.length) return;
+      e.preventDefault();
+      o.sel = (o.sel + (e.key === 'ArrowDown' ? 1 : -1) + o.rows.length) % o.rows.length;
+      o.render();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = input.value.trim();
+      if (v) go(o.rows[o.sel] ? o.rows[o.sel].url : toUrl(v), e.altKey);
+    } else if (e.key === 'Escape') {
+      o.close();
+      opts.escape && opts.escape();
+    } else if (e.key === 'Delete' && e.shiftKey && o.rows[o.sel] && o.rows[o.sel].icon === 'hist') {
+      hist.delete(o.rows[o.sel].url); o.build(); o.render();
+    }
+  });
+  // Premier clic : tout sélectionner, comme Chrome.
+  input.addEventListener('mousedown', e => { if (document.activeElement !== input) { e.preventDefault(); o.focus(); } });
+  input.addEventListener('blur', () => { o.close(); opts.blur && opts.blur(); });
+  return o;
 }
-function renderDrop() {
-  const d = $('#drop');
-  sel = Math.min(sel, Math.max(rows.length - 1, 0));
-  d.innerHTML = rows.map((r, i) => rowHtml(r, i, sel)).join('');
-  d.classList.toggle('open', rows.length > 0 && document.activeElement === $('#q'));
-  syncHeight();
-}
-$('#drop').onmousedown = e => {
-  e.preventDefault();
-  const r = e.target.closest('.row');
-  if (r) go(rows[+r.dataset.i].url, e.button === 1 || e.ctrlKey);
-};
-function closeDrop() { rows = []; remote = []; renderDrop(); }
+const currentUrl = () => { const t = tabs.find(t => t.id === active); return t ? t.url : ''; };
+const omni = makeOmni($('#q'), $('#drop'), {
+  escape: () => { $('#q').value = currentUrl(); if (currentUrl()) { $('#q').blur(); send({ t: 'focus_page' }); } },
+  blur: () => { $('#q').value = currentUrl(); },
+});
+const ntpOmni = makeOmni($('#ntp-q'), $('#ntp-drop'), { escape: () => { $('#ntp-q').value = ''; } });
 function go(url, newTab) {
-  closeDrop();
-  $('#q').blur();
+  omni.close(); ntpOmni.close();
+  $('#q').blur(); $('#ntp-q').blur(); $('#ntp-q').value = '';
   if (panel) openPanel(null);
   send(newTab ? { t: 'new', url } : { t: 'go', url });
 }
-let debounce;
-$('#q').addEventListener('input', e => {
-  const q = $('#q');
-  typed = q.value;
-  if (e.inputType === 'insertText' && q.selectionStart === q.value.length) {
-    const c = inlineComplete(typed);
-    if (c) { q.value = typed + c.slice(typed.length); q.setSelectionRange(typed.length, q.value.length); }
-  }
-  sel = 0;
-  remote = remote.filter(s => s.toLowerCase().startsWith(typed.trim().toLowerCase()));
-  buildRows(); renderDrop();
-  clearTimeout(debounce);
-  if (wantsRemote(typed.trim())) { const g = ++gen; debounce = setTimeout(() => send({ t: 'suggest', gen: g, q: typed.trim() }), 40); }
-});
-$('#q').addEventListener('keydown', e => {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    if (!rows.length) return;
-    e.preventDefault();
-    sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
-    renderDrop();
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    const v = $('#q').value.trim();
-    if (v) go(rows[sel] ? rows[sel].url : toUrl(v), e.altKey);
-  } else if (e.key === 'Escape') {
-    const t = tabs.find(t => t.id === active);
-    closeDrop();
-    $('#q').value = t ? t.url : '';
-    if (t && t.url) { $('#q').blur(); send({ t: 'focus_page' }); }
-  } else if (e.key === 'Delete' && e.shiftKey && rows[sel] && rows[sel].icon === 'hist') {
-    hist.delete(rows[sel].url); buildRows(); renderDrop();
-  }
-});
-function focusOmni() { const q = $('#q'); q.focus(); q.select(); typed = ''; }
-// Premier clic : tout sélectionner, comme Chrome.
-$('#q').addEventListener('mousedown', e => { if (document.activeElement !== $('#q')) { e.preventDefault(); focusOmni(); } });
-$('#q').addEventListener('blur', () => { closeDrop(); const t = tabs.find(t => t.id === active); $('#q').value = t ? t.url : ''; });
+function focusOmni() { omni.focus(); }
+/** Page d'accueil affichée : on tape dans sa grande barre, sinon dans la barre d'adresse. */
+function focusSearch() { (currentUrl() || panel ? omni : ntpOmni).focus(); }
 
-/* ---------- nouvel onglet ---------- */
-function renderSites() {
-  const seen = new Set(), list = [];
-  if (settings.ntp_sites !== false) for (const v of [...hist.values()].sort((a, b) => frecency(b) - frecency(a))) {
-    const h = host(v.url);
-    if (!h || seen.has(h)) continue;
-    seen.add(h); list.push(v);
-    if (list.length === 8) break;
-  }
-  $('#sites').innerHTML = list.map(v => `<button class="site" data-u="${esc(v.url)}">${fav(v.url)}<span>${esc(host(v.url))}</span></button>`).join('');
+/* ---------- favoris ---------- */
+const isFav = url => favs.some(f => f.url === url);
+function saveFavs() { send({ t: 'bookmarks', items: favs }); renderFavs(); }
+function toggleFav() {
+  const t = tabs.find(t => t.id === active);
+  if (!t || !t.url) return;
+  favs = isFav(t.url) ? favs.filter(f => f.url !== t.url) : [...favs, { url: t.url, title: t.title || bare(t.url) }];
+  saveFavs();
 }
-$('#sites').onclick = e => { const s = e.target.closest('.site'); if (s) go(new URL(s.dataset.u).origin + '/'); };
+function renderStar() {
+  const url = currentUrl();
+  $('#star').classList.toggle('hidden', !url);
+  $('#star').classList.toggle('on', isFav(url));
+  $('#star').title = isFav(url) ? 'Retirer des favoris (Ctrl+D)' : 'Ajouter aux favoris (Ctrl+D)';
+}
+function renderFavs() {
+  $('#favbar').innerHTML = favs.map((f, i) => `<button class="fb" data-i="${i}" title="${esc(f.title)}\n${esc(f.url)}">${fav(f.url)}<span>${esc(f.title || bare(f.url))}</span></button>`).join('');
+  $('#favbar').classList.toggle('show', !!settings.show_favbar && favs.length > 0);
+  document.documentElement.style.setProperty('--fav-h', $('#favbar').classList.contains('show') ? '31px' : '0px');
+  $('#fav-list').innerHTML = favs.length ? favs.map((f, i) =>
+    `<div class="favrow" data-i="${i}"><input type="text" class="t" value="${esc(f.title)}" data-f="title"><input type="text" value="${esc(f.url)}" data-f="url">` +
+    `<button class="mini" data-m="-1" ${i ? '' : 'disabled'}>↑</button><button class="mini" data-m="1" ${i < favs.length - 1 ? '' : 'disabled'}>↓</button><button class="mini" data-del>Supprimer</button></div>`).join('')
+    : '<div style="color:var(--dim)">Aucun favori pour l\'instant.</div>';
+  renderStar();
+  syncHeight();
+}
+$('#star').onclick = e => { e.preventDefault(); toggleFav(); };
+$('#favbar').onmousedown = e => {
+  const b = e.target.closest('.fb');
+  if (!b) return;
+  e.preventDefault();
+  const url = favs[+b.dataset.i].url;
+  e.button === 1 || e.ctrlKey ? send({ t: 'new', url }) : go(url);
+};
+$('#fav-list').addEventListener('change', e => {
+  const row = e.target.closest('.favrow');
+  if (row && e.target.dataset.f) { favs[+row.dataset.i][e.target.dataset.f] = e.target.value.trim(); saveFavs(); }
+});
+$('#fav-list').addEventListener('click', e => {
+  const row = e.target.closest('.favrow'), b = e.target.closest('button');
+  if (!row || !b || b.disabled) return;
+  const i = +row.dataset.i;
+  if ('del' in b.dataset) favs.splice(i, 1);
+  else { const j = i + +b.dataset.m; [favs[i], favs[j]] = [favs[j], favs[i]]; }
+  saveFavs();
+});
+$('#fav-add').onclick = () => { const t = tabs.find(t => t.id === active); if (t && t.url && !isFav(t.url)) { favs.push({ url: t.url, title: t.title || bare(t.url) }); saveFavs(); } };
+$('#fav-new').onclick = () => { favs.push({ url: 'https://', title: 'Nouveau favori' }); saveFavs(); const inputs = $$('#fav-list .favrow:last-child input'); inputs[1] && inputs[1].focus(); };
 
 /* ---------- panneaux ---------- */
 function openPanel(name) {
@@ -401,6 +497,7 @@ function openPanel(name) {
   $('#settings').classList.toggle('show', panel === 'settings');
   $('#monitor').classList.toggle('show', panel === 'monitor');
   $('#histcount').textContent = `${hist.size} pages mémorisées · chiffré`;
+  renderFavs();
   syncHeight();
 }
 $('#menu').onclick = () => openPanel('settings');
@@ -417,6 +514,7 @@ $('#side').onclick = e => { const b = e.target.closest('button'); if (b) showSec
 function save() { send({ t: 'settings', s: settings }); applySettings(); }
 const outputs = {
   ram_limit: v => v ? fmtMem(v * 1048576) : 'Aucune',
+  ntp_dim: v => v + ' %',
   cpu_limit: v => v ? v + ' %' : 'Aucun',
   net_limit: v => v ? (v >= 1024 ? (v / 1024).toFixed(1) + ' Mo/s' : v + ' Ko/s') : 'Illimité',
 };
@@ -451,8 +549,10 @@ for (const b of $$('[data-clear]')) b.onclick = () => {
   const label = b.closest('.opt').querySelector('div').firstChild.textContent.trim();
   if (confirm(`${label} : confirmer ? Cette action est irréversible.`)) { send({ t: 'clear_data', what: b.dataset.clear }); b.textContent = 'Fait'; }
 };
-$('#clearhist').onclick = () => { if (confirm("Effacer tout l'historique ?")) { hist.clear(); send({ t: 'clear_history' }); renderSites(); openPanel('settings'); openPanel('settings'); } };
+$('#clearhist').onclick = () => { if (confirm("Effacer tout l'historique ?")) { hist.clear(); send({ t: 'clear_history' }); $('#histcount').textContent = '0 page mémorisée'; } };
 $('#updfilters').onclick = () => send({ t: 'update_filters' });
+$('#pick-media').onclick = () => send({ t: 'pick_background' });
+$('#clear-media').onclick = () => send({ t: 'clear_background' });
 
 function applySettings() {
   const s = settings, root = document.documentElement;
@@ -462,15 +562,26 @@ function applySettings() {
   $('#mem').classList.toggle('hidden', !s.show_stats);
   $('#shield').classList.toggle('hidden', !s.show_shield);
   $('#shield').classList.toggle('on', !!s.blocker);
+  // Fond de la page d'accueil : fichier local (image, GIF, vidéo) sinon couleur / adresse d'image.
+  const media = s.ntp_media || '', video = $('#ntp-media-video');
+  const mediaUrl = media ? 'http://flux.localhost/' + media : '';
+  const isVideo = /\.(mp4|m4v|webm|mov)(\?|$)/i.test(media);
   const bg = (s.ntp_bg || '').trim();
-  $('#ntp').style.background = !bg ? '' : /^(https?:|data:)/.test(bg) ? `center / cover no-repeat url("${bg.replace(/"/g, '')}")` : bg;
+  $('#ntp').style.background = media && !isVideo ? `center / cover no-repeat url("${mediaUrl}")`
+    : !bg || media ? '' : /^(https?:|data:)/.test(bg) ? `center / cover no-repeat url("${bg.replace(/"/g, '')}")` : bg;
+  if (isVideo && video.getAttribute('src') !== mediaUrl) { video.src = mediaUrl; }
+  if (!isVideo && video.src) { video.removeAttribute('src'); video.load(); }
+  video.classList.toggle('hidden', !isVideo);
+  $('#ntp').classList.toggle('media', !!(media || bg));
+  $('#ntp-dim').style.opacity = media || bg ? (s.ntp_dim || 0) / 100 : 0;
+  $('#media-name').textContent = media ? 'Fichier actuel : ' + media.split('?')[0].replace('background.', '').toUpperCase() : 'Aucun fichier choisi';
+  $('#clear-media').classList.toggle('hidden', !media);
   $('#custom').textContent = s.custom_css || '';
   $('#custom-engine-row').classList.toggle('hidden', s.engine !== 'custom');
   $('#home-row').classList.toggle('hidden', s.startup !== 'home');
   $$('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === s.accent));
   for (const [k, f] of Object.entries(outputs)) for (const o of $$(`[data-o="${k}"]`)) o.textContent = f(s[k] || 0);
-  $('#ntp-hotkey').textContent = prettyKey(s.hotkey || '');
-  renderSites();
+  renderFavs();
   requestAnimationFrame(syncHeight);
 }
 
@@ -574,6 +685,7 @@ addEventListener('keydown', e => {
   else if (k === 'f5' || (c && k === 'r')) { e.preventDefault(); send({ t: 'reload' }); return; }
   else if (k === 'f12') { e.preventDefault(); send({ t: 'devtools' }); return; }
   else if (c && e.shiftKey && k === 'escape') { e.preventDefault(); openPanel('monitor'); return; }
+  else if (c && k === 'd') { e.preventDefault(); toggleFav(); return; }
   else if (e.altKey && k === 'arrowleft') { e.preventDefault(); send({ t: 'back' }); return; }
   else if (e.altKey && k === 'arrowright') { e.preventDefault(); send({ t: 'forward' }); return; }
   else if (k === 'escape' && panel) { openPanel(panel); return; }
@@ -592,17 +704,19 @@ window.flux = m => {
       renderTabs();
       break;
     }
-    case 'focus': if (panel) openPanel(null); focusOmni(); break;
+    case 'focus': if (panel) openPanel(null); focusSearch(); break;
     case 'hist':
       if (m.reset) hist = new Map();
       for (const v of m.items) hist.set(v.url, v);
-      renderSites();
       break;
-    case 'sugg':
-      if (m.gen !== gen) return;
-      remote = m.items;
-      if (document.activeElement === $('#q')) { buildRows(); renderDrop(); }
+    case 'favs': favs = m.items; renderFavs(); break;
+    case 'sugg': {
+      const o = activeOmni;
+      if (!o || m.gen !== o.gen) return;
+      o.remote = m.items;
+      o.build(); o.render();
       break;
+    }
     case 'settings': settings = m.s; hotkeyOk = m.hotkey_ok; fillSettings(); applySettings(); break;
     case 'filters': renderFilters(m); break;
     case 'stats': renderStats(m); break;

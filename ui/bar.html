@@ -40,7 +40,7 @@ kbd.hint { color: var(--dim); font: 12px var(--font); padding: 3px 7px; border-r
 <script>
 const $ = s => document.querySelector(s);
 const send = m => window.ipc.postMessage(JSON.stringify(m));
-let settings = {}, hist = new Map(), rows = [], sel = 0, gen = 0, typed = '', remote = [], lastH = 0, debounce;
+let settings = {}, hist = new Map(), favs = [], rows = [], sel = 0, gen = 0, typed = '', remote = [], lastH = 0, debounce;
 
 function render() {
   const completed = $('#q').selectionStart === typed.length && $('#q').value.length > typed.length ? $('#q').value : null;
@@ -85,16 +85,16 @@ document.addEventListener('contextmenu', e => { if (e.target !== $('#q')) e.prev
 
 // Clic ailleurs (autre application, bureau) : la barre se referme.
 addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) send({ t: 'hide' }); }, 120));
-window.openBar = () => { const q = $('#q'); q.focus(); q.select(); };
-window.closeBar = () => { $('#q').value = ''; typed = ''; remote = []; render(); };
 window.flux = m => {
   switch (m.t) {
     case 'settings': settings = m.s; applyTheme(settings); break;
     case 'hist': if (m.reset) hist = new Map(); for (const v of m.items) hist.set(v.url, v); break;
+    case 'favs': favs = m.items; break;
     case 'sugg': if (m.gen === gen) { remote = m.items; render(); } break;
   }
 };
 send({ t: 'ready' });
+$('#q').focus();
 </script>
 </body>
 </html>

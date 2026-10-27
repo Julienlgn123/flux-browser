@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod filters;
+mod media;
 mod monitor;
 mod quickbar;
 mod secure;
@@ -29,7 +30,7 @@ use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy},
-    platform::windows::IconExtWindows,
+    platform::windows::{IconExtWindows, WindowExtWindows},
     window::{Icon, Theme, Window, WindowBuilder},
 };
 use tray_icon::{
@@ -43,11 +44,11 @@ use wry::{
 };
 
 use quickbar::QuickBar;
-use store::{Session, SessionTab, Settings, Store};
+use store::{Bookmark, Session, SessionTab, Settings, Store};
 
 const TICK: Duration = Duration::from_secs(1);
 /// Un onglet caché passe en mode mémoire réduite après ce délai.
-const LOW_MEMORY_AFTER: Duration = Duration::from_secs(30);
+const LOW_MEMORY_AFTER: Duration = Duration::from_secs(15);
 const MB: u64 = 1 << 20;
 
 const UI_HTML: &str = include_str!("../ui/index.html");
@@ -157,6 +158,9 @@ enum UiMsg {
     Freeze { id: u32 },
     Discard { id: u32 },
     QuickBar,
+    Bookmarks { items: Vec<Bookmark> },
+    PickBackground,
+    ClearBackground,
 }
 
 #[derive(Deserialize)]
@@ -200,7 +204,9 @@ struct Tab {
 
 struct App {
     window: Window,
-    ui: WebView,
+    /// Interface (onglets, barre d'adresse). N'existe que quand la fenêtre est affichée.
+    ui: Option<WebView>,
+    ui_html: String,
     bar: QuickBar,
     ctx: WebContext,
     proxy: EventLoopProxy<UserEvent>,
@@ -314,10 +320,12 @@ impl App {
         // Page vide (nouvel onglet) : l'interface occupe toute la fenêtre.
         let empty = self.active_view().is_none();
         let ui_h = if empty { h } else { self.ui_h.map_or(h, |x| x.min(h)) };
-        let _ = self.ui.set_bounds(Rect {
-            position: LogicalPosition::new(0.0, 0.0).into(),
-            size: WryLogicalSize::new(w, ui_h).into(),
-        });
+        if let Some(ui) = &self.ui {
+            let _ = ui.set_bounds(Rect {
+                position: LogicalPosition::new(0.0, 0.0).into(),
+                size: WryLogicalSize::new(w, ui_h).into(),
+            });
+        }
         let rect = self.content_rect();
         for v in self.views() {
             let _ = v.set_bounds(rect);
@@ -325,7 +333,9 @@ impl App {
     }
 
     fn send(&self, msg: serde_json::Value) {
-        let _ = self.ui.evaluate_script(&format!("flux({msg})"));
+        if let Some(ui) = &self.ui {
+            let _ = ui.evaluate_script(&format!("flux({msg})"));
+        }
     }
 
     fn push_tabs(&self) {
@@ -400,7 +410,9 @@ impl App {
         if s.zoom != 100 {
             let _ = view.zoom(s.zoom as f64 / 100.0);
         }
-        wv2::raise(&self.ui);
+        if let Some(ui) = &self.ui {
+            wv2::raise(ui);
+        }
         view
     }
 
@@ -467,7 +479,9 @@ impl App {
         let id = self.add_tab(&url, "");
         self.activate(id);
         if url.is_empty() {
-            let _ = self.ui.focus();
+            if let Some(ui) = &self.ui {
+                let _ = ui.focus();
+            }
             self.send(json!({ "t": "focus" }));
         }
     }
@@ -563,7 +577,9 @@ impl App {
             "reopen" => self.reopen(),
             "close" => self.close_tab(source),
             "focus" => {
-                let _ = self.ui.focus();
+                if let Some(ui) = &self.ui {
+                let _ = ui.focus();
+            }
                 self.send(json!({ "t": "focus" }));
             }
             "next" => self.cycle(1),
@@ -659,7 +675,9 @@ impl App {
             }
         }
         if s.tracking != old.tracking {
-            wv2::set_tracking(&self.ui, &s.tracking);
+            if let Some(ui) = &self.ui {
+                wv2::set_tracking(ui, &s.tracking);
+            }
         }
         if s.cpu_limit != old.cpu_limit {
             if let Some(l) = &mut self.cpu_limiter {
@@ -674,7 +692,6 @@ impl App {
         }
         if s.theme != old.theme {
             self.window.set_theme(theme_of(&s));
-            self.bar.window.set_theme(theme_of(&s));
         }
         self.store.save_settings();
         self.push_settings();
@@ -692,6 +709,7 @@ impl App {
                 self.send(json!({ "t": "hist", "items": self.store.ranked(3000), "reset": true }));
                 self.push_tabs();
                 self.push_filters();
+                self.push_bookmarks();
                 if self.active_view().is_none() {
                     self.send(json!({ "t": "focus" }));
                 }
@@ -725,7 +743,11 @@ impl App {
                 self.send(msg.clone());
                 self.bar.send(&msg);
             }
-            UiMsg::ClearData { what } => wv2::clear_data(&self.ui, &what),
+            UiMsg::ClearData { what } => {
+                if let Some(ui) = &self.ui {
+                    wv2::clear_data(ui, &what);
+                }
+            }
             UiMsg::Reopen => self.reopen(),
             UiMsg::Devtools => {
                 if let Some(v) = self.active_view() {
@@ -742,7 +764,27 @@ impl App {
             }
             UiMsg::Freeze { id } => self.freeze(id),
             UiMsg::Discard { id } => self.discard(id),
-            UiMsg::QuickBar => self.bar.show(),
+            UiMsg::QuickBar => self.show_bar(),
+            UiMsg::Bookmarks { items } => {
+                self.store.bookmarks = items;
+                self.store.save_bookmarks();
+                self.push_bookmarks();
+            }
+            UiMsg::PickBackground => {
+                if let Some(path) = system::pick_media(self.window.hwnd()) {
+                    if let Some(name) = media::install(&self.store.dir, &path) {
+                        let mut s = self.settings().clone();
+                        s.ntp_media = format!("{name}?{}", store::now());
+                        self.apply_settings(s);
+                    }
+                }
+            }
+            UiMsg::ClearBackground => {
+                media::clear(&self.store.dir);
+                let mut s = self.settings().clone();
+                s.ntp_media.clear();
+                self.apply_settings(s);
+            }
         }
     }
 
@@ -752,6 +794,7 @@ impl App {
             BarMsg::Ready => {
                 self.push_settings();
                 self.bar.send(&json!({ "t": "hist", "items": self.store.ranked(3000), "reset": true }));
+                self.bar.send(&json!({ "t": "favs", "items": self.store.bookmarks }));
             }
             BarMsg::Go { url } => {
                 self.bar.hide();
@@ -840,9 +883,11 @@ impl App {
                 });
             }
             let p = self.proxy.clone();
-            wv2::process_map(&self.ui, move |list| {
-                let _ = p.send_event(UserEvent::Procs(list));
-            });
+            if let Some(ui) = &self.ui {
+                wv2::process_map(ui, move |list| {
+                    let _ = p.send_event(UserEvent::Procs(list));
+                });
+            }
         }
         if self.ticks % 30 == 0 {
             self.persist();
@@ -942,6 +987,56 @@ impl App {
         t.task_prev = Some((task, now));
     }
 
+    fn create_ui(&mut self) {
+        if self.ui.is_some() {
+            return;
+        }
+        let p = self.proxy.clone();
+        let dir = self.store.dir.clone();
+        let (w, h) = self.logical_size();
+        let bg = if theme_of(self.settings()) == Some(Theme::Light) { (236, 236, 239, 255) } else { (24, 24, 27, 255) };
+        let ui = WebViewBuilder::new_with_web_context(&mut self.ctx)
+            .with_html(&self.ui_html)
+            .with_bounds(Rect {
+                position: LogicalPosition::new(0.0, 0.0).into(),
+                size: WryLogicalSize::new(w, h).into(),
+            })
+            .with_additional_browser_args(&self.args)
+            .with_hotkeys_zoom(false)
+            .with_default_context_menus(false)
+            .with_background_color(bg)
+            // Fond personnalisé de la page d'accueil : http://flux.localhost/background.*
+            .with_custom_protocol("flux".into(), move |_, req| media::serve(&dir, req))
+            .with_ipc_handler(move |r| {
+                let _ = p.send_event(UserEvent::Ui(r.body().clone()));
+            })
+            .build_as_child(&self.window)
+            .expect("création de l'interface");
+        wv2::set_tracking(&ui, &self.settings().tracking);
+        wv2::raise(&ui);
+        self.ui = Some(ui);
+        self.layout();
+    }
+
+    fn show_bar(&mut self) {
+        let theme = theme_of(self.settings());
+        self.bar.show(&mut self.ctx, theme);
+    }
+
+    fn toggle_bar(&mut self) {
+        if self.bar.visible() {
+            self.bar.hide();
+        } else {
+            self.show_bar();
+        }
+    }
+
+    fn push_bookmarks(&self) {
+        let msg = json!({ "t": "favs", "items": self.store.bookmarks });
+        self.send(msg.clone());
+        self.bar.send(&msg);
+    }
+
     fn persist(&mut self) {
         let active = self.tabs.iter().position(|t| t.id == self.active).unwrap_or(0);
         let tabs = self
@@ -958,8 +1053,7 @@ impl App {
         if !self.shown {
             self.shown = true;
             self.window.set_visible(true);
-            let _ = self.ui.set_visible(true);
-            let _ = self.ui.set_memory_usage_level(MemoryUsageLevel::Normal);
+            self.create_ui();
             self.activate(self.active);
         }
         self.window.set_minimized(false);
@@ -981,17 +1075,16 @@ impl App {
             t.suspended = false;
             t.received_prev = 0;
         }
-        // Vue cachée + mémoire réduite : le moteur libère ses ressources graphiques.
-        let _ = self.ui.set_visible(false);
-        let _ = self.ui.set_memory_usage_level(MemoryUsageLevel::Low);
-        let _ = self.bar.view.set_memory_usage_level(MemoryUsageLevel::Low);
-        self.push_tabs();
+        // Plus aucune vue web : le moteur WebView2 s'arrête complètement et rend toute sa
+        // mémoire. Seul le petit processus Flux reste, pour le raccourci et l'icône.
+        self.ui = None;
+        self.bar.hide();
     }
 
     fn command(&mut self, cmd: &str) {
         let cmd = cmd.trim();
         if cmd == "bar" {
-            self.bar.show();
+            self.show_bar();
         } else if let Some(url) = cmd.strip_prefix("url ") {
             self.open_url(url.to_string());
         } else {
@@ -1069,33 +1162,9 @@ fn main() {
     }
 
     let args = browser_args(&settings);
-    let mut ctx = WebContext::new(Some(store.webview_dir()));
+    let ctx = WebContext::new(Some(store.webview_dir()));
     let ui_html = UI_HTML.replace("/*OMNI*/", OMNI_JS);
-    let bar_html = BAR_HTML.replace("/*OMNI*/", OMNI_JS);
-
-    let ui = {
-        let p = proxy.clone();
-        let s = window.inner_size().to_logical::<f64>(window.scale_factor());
-        WebViewBuilder::new_with_web_context(&mut ctx)
-            .with_html(&ui_html)
-            .with_bounds(Rect {
-                position: LogicalPosition::new(0.0, 0.0).into(),
-                size: WryLogicalSize::new(s.width, s.height).into(),
-            })
-            .with_additional_browser_args(&args)
-            .with_hotkeys_zoom(false)
-            .with_default_context_menus(false)
-            .with_background_color((24, 24, 27, 255))
-            .with_ipc_handler(move |r| {
-                let _ = p.send_event(UserEvent::Ui(r.body().clone()));
-            })
-            .build_as_child(&window)
-            .expect("création de l'interface")
-    };
-    wv2::set_tracking(&ui, &settings.tracking);
-
-    let bar = QuickBar::new(&event_loop, &mut ctx, &args, &bar_html, proxy.clone());
-    bar.window.set_theme(theme_of(&settings));
+    let bar = QuickBar::new(&event_loop, &args, BAR_HTML.replace("/*OMNI*/", OMNI_JS), proxy.clone());
 
     let suggest = {
         let p = proxy.clone();
@@ -1170,7 +1239,8 @@ fn main() {
     let blocker_on = Arc::new(AtomicBool::new(settings.blocker));
     let mut app = App {
         window,
-        ui,
+        ui: None,
+        ui_html,
         bar,
         ctx,
         proxy: proxy.clone(),
@@ -1198,6 +1268,10 @@ fn main() {
         ticks: 0,
         _tray: tray(&proxy),
     };
+
+    if !background {
+        app.create_ui();
+    }
 
     // Restauration paresseuse : seuls les onglets réellement ouverts chargent leur page.
     let restore: Vec<SessionTab> = match settings.startup.as_str() {
@@ -1255,13 +1329,7 @@ fn main() {
                     app.push_filters();
                 }
                 UserEvent::Filters(c) => app.on_filters(c),
-                UserEvent::Hotkey => {
-                    if app.bar.visible() {
-                        app.bar.hide();
-                    } else {
-                        app.bar.show();
-                    }
-                }
+                UserEvent::Hotkey => app.toggle_bar(),
                 UserEvent::HotkeyStatus(ok, spec) => {
                     app.hotkey_status = (ok, spec);
                     app.push_settings();
@@ -1270,7 +1338,7 @@ fn main() {
                 UserEvent::TrayOpen => app.show_window(),
                 UserEvent::MenuItem(id) => match id.as_str() {
                     "open" => app.show_window(),
-                    "bar" => app.bar.show(),
+                    "bar" => app.show_bar(),
                     "quit" => {
                         app.persist();
                         *control_flow = ControlFlow::Exit;

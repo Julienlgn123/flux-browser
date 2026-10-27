@@ -23,8 +23,8 @@ Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
 - Moteur au choix : Google, DuckDuckGo, Brave, Bing.
 
 ## Barre de recherche rapide
-- **Ctrl + Alt + F** (ou **AltGr + F**) depuis n'importe quelle application : une barre s'ouvre en haut de l'écran, Entrée lance la recherche dans Flux.
-- Flux reste dans la zone de notification quand on ferme la fenêtre (les pages sont libérées) et démarre avec Windows, en arrière-plan.
+- **Ctrl + Shift + X** depuis n'importe quelle application : une barre s'ouvre en haut de l'écran, Entrée lance la recherche dans Flux.
+- Flux reste dans la zone de notification quand on ferme la fenêtre et démarre avec Windows, en arrière-plan : le moteur s'arrête alors complètement (~15 Mo au total). La barre rapide s'ouvre en ~0,5 s et sa vue est libérée dès qu'elle se ferme.
 - Instance unique : relancer Flux réaffiche la fenêtre existante.
 
 ## Consommation en temps réel et limiteurs
@@ -36,6 +36,10 @@ Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
 - Historique et session chiffrés sur le disque (DPAPI + entropie propre à Flux).
 - DNS-over-HTTPS (Cloudflare par défaut), HTTPS automatique, protection anti-pistage réglable.
 - Refus automatique des bannières de cookies (Google, YouTube, Didomi, OneTrust, Cookiebot…) + liste EasyList Cookie.
+
+## Page d'accueil et favoris
+- Page d'accueil épurée : logo et grande barre de recherche, sur un fond au choix (image, GIF ou vidéo locale, lue par morceaux et en pause dès qu'elle n'est pas visible), avec assombrissement réglable.
+- Favoris : étoile dans la barre d'adresse ou Ctrl+D, barre de favoris, gestion (renommer, réordonner, supprimer), prioritaires dans les suggestions ; stockés chiffrés.
 
 ## Personnalisation
 Thème clair/sombre/système, couleur d'accent, densité, éléments de la barre, fond de la page nouvel onglet, zoom par défaut, moteur de recherche (dont personnalisé), bangs personnels, raccourci global, page de démarrage, et feuille de style CSS libre pour toute l'interface.
