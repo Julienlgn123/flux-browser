@@ -112,6 +112,7 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   <label class="opt"><div>Décharger les onglets inactifs après<small>Libère toute leur mémoire, rechargés au clic · 0 = jamais</small></div><input type="number" min="0" id="s-discard_min"> min</label>
   <label class="opt"><div>Mode éco<small>Limite à 3 processus de rendu · redémarrage requis</small></div><input type="checkbox" id="s-eco"></label>
   <label class="opt"><div>Bloquer pubs et traqueurs<small>Pages plus légères et plus rapides à charger</small></div><input type="checkbox" id="s-blocker"></label>
+  <div class="opt"><div>Listes de filtrage<small>EasyList, EasyPrivacy, Liste FR, uBlock (filtres, vie privée, malveillants, correctifs), Peter Lowe · mises à jour toutes les 24 h</small><small id="filterstat">—</small></div><button class="btn" id="updfilters">Mettre à jour</button></div>
   <h3>Données</h3>
   <div class="opt"><div>Historique<small id="histcount"></small></div><button class="btn" id="clearhist">Effacer</button></div>
   <h3>État</h3>
@@ -364,6 +365,22 @@ for (const el of document.querySelectorAll('[id^="s-"]')) {
     renderShield();
   };
 }
+$('#updfilters').onclick = () => send({ t: 'update_filters' });
+function ago(secs) {
+  const s = Date.now() / 1000 - secs;
+  if (s < 90) return "à l'instant";
+  if (s < 5400) return `il y a ${Math.round(s / 60)} min`;
+  if (s < 129600) return `il y a ${Math.round(s / 3600)} h`;
+  return `il y a ${Math.round(s / 86400)} j`;
+}
+function renderFilters(m) {
+  const stat = m.busy ? 'Téléchargement et compilation en cours…'
+    : m.updated > 1 ? `${m.rules.toLocaleString('fr-FR')} règles · ${m.lists} listes · mises à jour ${ago(m.updated)}`
+    : 'Listes complètes pas encore téléchargées (liste de secours active)';
+  $('#filterstat').textContent = stat;
+  $('#updfilters').disabled = m.busy;
+  $('#updfilters').style.opacity = m.busy ? .5 : 1;
+}
 $('#clearhist').onclick = () => { hist.clear(); send({ t: 'clear_history' }); renderSites(); toggleSettings(true); };
 function fillSettings() {
   for (const [k, v] of Object.entries(settings)) {
@@ -414,6 +431,7 @@ window.flux = m => {
       if (document.activeElement === $('#q')) { buildRows(); renderDrop(); }
       break;
     case 'settings': settings = m.s; fillSettings(); renderShield(); break;
+    case 'filters': renderFilters(m); break;
     case 'stats': {
       const mb = m.mem / 1048576;
       $('#mem').textContent = (mb >= 1024 ? (mb / 1024).toFixed(2) + ' Go' : Math.round(mb) + ' Mo') + ` · ${m.alive}/${m.total}`;

@@ -1,19 +1,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod filters;
 mod store;
 mod suggest;
 mod wv2;
 
 use std::{
+    cell::RefCell,
+    collections::HashSet,
+    rc::Rc,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc::Sender,
+        mpsc::{channel, Sender},
         Arc,
     },
     thread,
     time::{Duration, Instant},
 };
 
+use adblock::Engine;
 use serde::Deserialize;
 use serde_json::json;
 use tao::{
@@ -37,7 +42,52 @@ const TICK: Duration = Duration::from_secs(3);
 const LOW_MEMORY_AFTER: Duration = Duration::from_secs(30);
 
 const UI_HTML: &str = include_str!("../ui/index.html");
-const BLOCKLIST: &str = include_str!("blocklist.txt");
+
+/// Filtrage cosmétique : masque les emplacements publicitaires (règles `##` des listes).
+/// Les règles propres au site arrivent dès la création du document ; les règles génériques
+/// sont demandées pour les classes / id réellement présents dans la page.
+const COSMETIC_JS: &str = r#"
+(() => {
+  if (window.top !== window || !/^https?:$/.test(location.protocol)) return;
+  const post = m => window.ipc.postMessage(JSON.stringify(m));
+  const sheet = new CSSStyleSheet();
+  let css = '', attached = false;
+  const seenC = new Set(), seenI = new Set();
+  let pc = [], pi = [], timer = null;
+  const collect = el => {
+    if (el.id && !seenI.has(el.id)) { seenI.add(el.id); pi.push(el.id); }
+    if (el.classList) for (const c of el.classList) if (!seenC.has(c)) { seenC.add(c); pc.push(c); }
+  };
+  const flush = () => { timer = null; if (pc.length || pi.length) { post({ c: 'ids', classes: pc, ids: pi }); pc = []; pi = []; } };
+  const queue = () => { if (!timer) timer = setTimeout(flush, 100); };
+  const scan = () => {
+    document.querySelectorAll('[id],[class]').forEach(collect); queue();
+    new MutationObserver(ms => {
+      for (const m of ms) {
+        if (m.type === 'attributes') collect(m.target);
+        else for (const n of m.addedNodes) if (n.nodeType === 1) { collect(n); n.querySelectorAll('[id],[class]').forEach(collect); }
+      }
+      queue();
+    }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['id', 'class'] });
+  };
+  window.__fluxHide = (more, generic) => {
+    if (more) {
+      css += more;
+      sheet.replaceSync(css);
+      if (!attached) { attached = true; document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]; }
+    }
+    if (generic) document.readyState === 'loading' ? addEventListener('DOMContentLoaded', scan, { once: true }) : scan();
+  };
+  post({ c: 'cosm', url: location.href });
+})();
+"#;
+
+#[derive(Deserialize)]
+#[serde(tag = "c", rename_all = "snake_case")]
+enum PageMsg {
+    Cosm { url: String },
+    Ids { classes: Vec<String>, ids: Vec<String> },
+}
 
 /// Raccourcis clavier quand le focus est dans une page web.
 const PAGE_JS: &str = r#"
@@ -62,6 +112,8 @@ enum UserEvent {
     OpenTab(String),
     Suggest(u64, Vec<String>),
     Tick,
+    FiltersBusy,
+    Filters(Option<filters::Compiled>),
 }
 
 #[derive(Deserialize)]
@@ -83,11 +135,16 @@ enum UiMsg {
     Reopen,
     Devtools,
     FocusPage,
+    UpdateFilters,
 }
 
 struct Tab {
     id: u32,
     view: Option<WebView>,
+    /// Adresse du document principal, partagée avec le bloqueur réseau.
+    page_url: Rc<RefCell<String>>,
+    /// Exceptions cosmétiques (`#@#`) du site courant.
+    cosmetic_exceptions: HashSet<String>,
     url: String,
     title: String,
     loading: bool,
@@ -107,7 +164,10 @@ struct App {
     closed: Vec<SessionTab>,
     store: Store,
     args: String,
-    blocklist: Vec<&'static str>,
+    engine: Rc<RefCell<Engine>>,
+    filter_meta: filters::Meta,
+    filters_busy: bool,
+    update_filters: Sender<()>,
     blocker_on: Arc<AtomicBool>,
     blocked: Arc<AtomicU64>,
     suggest: Sender<suggest::Request>,
@@ -181,12 +241,20 @@ impl App {
         let rect = self.content_rect();
         let p = self.proxy.clone();
         let (p1, p2, p3, p4) = (p.clone(), p.clone(), p.clone(), p);
+        let page_url = self.tab(id).map(|t| t.page_url.clone()).unwrap_or_default();
+        *page_url.borrow_mut() = strip_fragment(url).to_string();
+        let nav_url = page_url.clone();
         let view = WebViewBuilder::new_with_web_context(&mut self.ctx)
             .with_url(url)
             .with_bounds(rect)
             .with_additional_browser_args(&self.args)
             .with_initialization_script_for_main_only(PAGE_JS, true)
+            .with_initialization_script_for_main_only(COSMETIC_JS, true)
             .with_devtools(true)
+            .with_navigation_handler(move |u| {
+                *nav_url.borrow_mut() = strip_fragment(&u).to_string();
+                true
+            })
             .with_ipc_handler(move |r| {
                 let _ = p1.send_event(UserEvent::Page(id, r.body().clone()));
             })
@@ -208,7 +276,13 @@ impl App {
             })
             .build_as_child(&self.window)
             .expect("création de la vue WebView2");
-        let _ = wv2::install_blocker(&view, &self.blocklist, self.blocker_on.clone(), self.blocked.clone());
+        let _ = wv2::install_blocker(
+            &view,
+            self.engine.clone(),
+            page_url,
+            self.blocker_on.clone(),
+            self.blocked.clone(),
+        );
         wv2::raise(&self.ui);
         view
     }
@@ -219,6 +293,8 @@ impl App {
         self.tabs.push(Tab {
             id,
             view: None,
+            page_url: Rc::default(),
+            cosmetic_exceptions: HashSet::new(),
             url: url.to_string(),
             title: title.to_string(),
             loading: false,
@@ -338,6 +414,55 @@ impl App {
         }
     }
 
+    fn page_message(&mut self, id: u32, raw: &str) {
+        let Ok(msg) = serde_json::from_str::<PageMsg>(raw) else {
+            self.shortcut(id, raw);
+            return;
+        };
+        if !self.blocker_on.load(Ordering::Relaxed) {
+            return;
+        }
+        let engine = self.engine.clone();
+        let engine = engine.borrow();
+        let Some(tab) = self.tab_mut(id) else { return };
+        let script = match msg {
+            PageMsg::Cosm { url } => {
+                let res = engine.url_cosmetic_resources(&url);
+                let css = filters::hide_css(&res.hide_selectors);
+                tab.cosmetic_exceptions = res.exceptions;
+                let mut js = format!("window.__fluxHide&&__fluxHide({},{});", json!(css), !res.generichide);
+                js.push_str(&res.injected_script);
+                js
+            }
+            PageMsg::Ids { classes, ids } => {
+                let sel = engine.hidden_class_id_selectors(&classes, &ids, &tab.cosmetic_exceptions);
+                if sel.is_empty() {
+                    return;
+                }
+                format!("window.__fluxHide&&__fluxHide({});", json!(filters::hide_css(&sel)))
+            }
+        };
+        if let Some(v) = &tab.view {
+            let _ = v.evaluate_script(&script);
+        }
+    }
+
+    fn push_filters(&self) {
+        let m = &self.filter_meta;
+        self.send(json!({ "t": "filters", "rules": m.rules, "lists": m.lists, "updated": m.updated, "busy": self.filters_busy }));
+    }
+
+    fn on_filters(&mut self, compiled: Option<filters::Compiled>) {
+        self.filters_busy = false;
+        if let Some(c) = compiled {
+            if let Some(engine) = filters::materialize(&c) {
+                *self.engine.borrow_mut() = engine;
+                self.filter_meta = c.meta;
+            }
+        }
+        self.push_filters();
+    }
+
     fn reopen(&mut self) {
         if let Some(t) = self.closed.pop() {
             self.new_tab(Some(t.url));
@@ -355,6 +480,7 @@ impl App {
                 self.send(json!({ "t": "settings", "s": self.store.settings }));
                 self.send(json!({ "t": "hist", "items": self.store.ranked(3000), "reset": true }));
                 self.push_tabs();
+                self.push_filters();
                 if self.active_view().is_none() {
                     self.send(json!({ "t": "focus" }));
                 }
@@ -401,6 +527,9 @@ impl App {
                 if let Some(v) = self.active_view() {
                     let _ = v.focus();
                 }
+            }
+            UiMsg::UpdateFilters => {
+                let _ = self.update_filters.send(());
             }
         }
     }
@@ -488,6 +617,10 @@ impl App {
     }
 }
 
+fn strip_fragment(url: &str) -> &str {
+    url.split('#').next().unwrap_or(url)
+}
+
 fn main() {
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
@@ -548,11 +681,37 @@ fn main() {
         });
     }
 
-    let blocklist = BLOCKLIST
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect();
+    let (engine, filter_meta) = filters::load(&store.dir);
+    // Mise à jour des listes : au démarrage si elles ont plus de 24 h, puis vérification
+    // toutes les heures, ou immédiatement sur demande depuis les réglages.
+    let update_filters = {
+        let p = proxy.clone();
+        let base = store.dir.clone();
+        let (tx, rx) = channel::<()>();
+        let mut meta = filter_meta.clone();
+        thread::spawn(move || loop {
+            let forced = match rx.recv_timeout(if meta.updated == 0 { Duration::ZERO } else { Duration::from_secs(3600) }) {
+                Ok(()) => true,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => false,
+                Err(_) => break,
+            };
+            if !forced && !filters::is_stale(&meta) {
+                continue;
+            }
+            let _ = p.send_event(UserEvent::FiltersBusy);
+            let compiled = filters::compile(&base);
+            if let Some(c) = &compiled {
+                meta = c.meta.clone();
+            } else if meta.updated == 0 {
+                // Hors ligne au premier lancement : on réessaie dans une heure.
+                meta.updated = 1;
+            }
+            if p.send_event(UserEvent::Filters(compiled)).is_err() {
+                break;
+            }
+        });
+        tx
+    };
 
     let session = store.load_session();
     let blocker_on = Arc::new(AtomicBool::new(store.settings.blocker));
@@ -567,7 +726,10 @@ fn main() {
         closed: Vec::new(),
         store,
         args,
-        blocklist,
+        engine: Rc::new(RefCell::new(engine)),
+        filter_meta,
+        filters_busy: false,
+        update_filters,
         blocker_on,
         blocked: Arc::new(AtomicU64::new(0)),
         suggest,
@@ -594,12 +756,17 @@ fn main() {
             }
             Event::UserEvent(e) => match e {
                 UserEvent::Ui(m) => app.handle_ui(&m),
-                UserEvent::Page(id, cmd) => app.shortcut(id, &cmd),
+                UserEvent::Page(id, msg) => app.page_message(id, &msg),
                 UserEvent::Title(id, t) => app.on_title(id, t),
                 UserEvent::Load(id, started, url) => app.on_load(id, started, url),
                 UserEvent::OpenTab(url) => app.new_tab(Some(url)),
                 UserEvent::Suggest(gen, items) => app.send(json!({ "t": "sugg", "gen": gen, "items": items })),
                 UserEvent::Tick => app.tick(),
+                UserEvent::FiltersBusy => {
+                    app.filters_busy = true;
+                    app.push_filters();
+                }
+                UserEvent::Filters(c) => app.on_filters(c),
             },
             _ => {}
         }

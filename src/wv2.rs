@@ -1,20 +1,23 @@
 //! Accès direct aux API WebView2 que wry n'expose pas : bloqueur réseau,
 //! mise en veille des onglets, mesure mémoire, ordre d'empilement.
 
-use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
-    Arc,
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
 };
 
+use adblock::{request::Request, Engine};
 use webview2_com::{
-    Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2Environment8, ICoreWebView2_3, ICoreWebView2_8,
-        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL,
-    },
+    take_pwstr,
+    Microsoft::Web::WebView2::Win32::*,
     TrySuspendCompletedHandler, WebResourceRequestedEventHandler,
 };
 use windows::{
-    core::{Interface, BOOL, HSTRING},
+    core::{Interface, BOOL, HSTRING, PWSTR},
     Win32::{
         Foundation::{CloseHandle, HWND},
         System::{
@@ -22,42 +25,101 @@ use windows::{
             ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX},
             Threading::{GetCurrentProcessId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
         },
-        UI::WindowsAndMessaging::{SetWindowPos, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE},
+        UI::{
+            Shell::SHCreateMemStream,
+            WindowsAndMessaging::{SetWindowPos, HWND_TOP, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE},
+        },
     },
 };
 use wry::{WebView, WebViewExtWindows};
 
-/// Bloque les domaines publicitaires / traqueurs. Le filtrage par motif est fait
-/// par WebView2 côté navigateur : seules les requêtes bloquées remontent ici.
+fn request_type(ctx: COREWEBVIEW2_WEB_RESOURCE_CONTEXT) -> &'static str {
+    match ctx {
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT => "subdocument",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_STYLESHEET => "stylesheet",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_IMAGE => "image",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_MEDIA => "media",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_FONT => "font",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_SCRIPT => "script",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_XML_HTTP_REQUEST => "xmlhttprequest",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_FETCH => "fetch",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_WEBSOCKET => "websocket",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_PING => "ping",
+        COREWEBVIEW2_WEB_RESOURCE_CONTEXT_CSP_VIOLATION_REPORT => "csp_report",
+        _ => "other",
+    }
+}
+
+/// Réponse de remplacement pour les règles `$redirect` (ex. un script vide au lieu
+/// d'une régie pub), au format `data:<mime>;base64,<contenu>`.
+fn redirect_body(data_url: &str) -> Option<(Vec<u8>, String)> {
+    use base64::Engine as _;
+    let rest = data_url.strip_prefix("data:")?;
+    let (head, payload) = rest.split_once(',')?;
+    let mime = head.trim_end_matches(";base64").to_string();
+    let bytes = if head.ends_with(";base64") {
+        base64::engine::general_purpose::STANDARD.decode(payload).ok()?
+    } else {
+        payload.as_bytes().to_vec()
+    };
+    Some((bytes, mime))
+}
+
+/// Filtre chaque requête de la page avec le moteur EasyList / uBlock.
+/// `page_url` est l'adresse du document principal (sert aux règles tierces et `domain=`).
 pub fn install_blocker(
     view: &WebView,
-    domains: &[&str],
+    engine: Rc<RefCell<Engine>>,
+    page_url: Rc<RefCell<String>>,
     enabled: Arc<AtomicBool>,
     counter: Arc<AtomicU64>,
 ) -> windows::core::Result<()> {
     unsafe {
         let wv = view.webview();
         let env = view.environment();
-        for d in domains {
-            for pat in [format!("*://{d}/*"), format!("*://*.{d}/*")] {
-                wv.AddWebResourceRequestedFilter(&HSTRING::from(pat), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)?;
-            }
-        }
+        wv.AddWebResourceRequestedFilter(&HSTRING::from("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)?;
         let mut token = 0i64;
         wv.add_WebResourceRequested(
             &WebResourceRequestedEventHandler::create(Box::new(move |_, args| {
-                if let Some(args) = args {
-                    if enabled.load(Ordering::Relaxed) {
-                        let resp = env.CreateWebResourceResponse(
-                            None::<&IStream>,
-                            403,
-                            &HSTRING::from("Blocked"),
-                            &HSTRING::new(),
-                        )?;
-                        args.SetResponse(&resp)?;
-                        counter.fetch_add(1, Ordering::Relaxed);
-                    }
+                let Some(args) = args else { return Ok(()) };
+                if !enabled.load(Ordering::Relaxed) {
+                    return Ok(());
                 }
+                let req = args.Request()?;
+                let mut uri = PWSTR::null();
+                req.Uri(&mut uri)?;
+                let uri = take_pwstr(uri);
+                if !uri.starts_with("http") {
+                    return Ok(());
+                }
+                let mut ctx = COREWEBVIEW2_WEB_RESOURCE_CONTEXT_OTHER;
+                args.ResourceContext(&mut ctx)?;
+                let page = page_url.borrow();
+                // Ne jamais bloquer la navigation principale elle-même.
+                if ctx == COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT && *page == uri {
+                    return Ok(());
+                }
+                let mut method = PWSTR::null();
+                req.Method(&mut method)?;
+                let method = take_pwstr(method);
+                let Ok(request) = Request::new(&uri, &page, request_type(ctx), &method) else {
+                    return Ok(());
+                };
+                let result = engine.borrow().check_network_request(&request);
+                if !result.should_block() {
+                    return Ok(());
+                }
+                let resp = match result.redirect.as_deref().and_then(redirect_body) {
+                    Some((body, mime)) => env.CreateWebResourceResponse(
+                        SHCreateMemStream(Some(&body)).as_ref(),
+                        200,
+                        &HSTRING::from("OK"),
+                        &HSTRING::from(format!("Content-Type: {mime}\r\nAccess-Control-Allow-Origin: *")),
+                    )?,
+                    None => env.CreateWebResourceResponse(None::<&IStream>, 403, &HSTRING::from("Blocked"), &HSTRING::new())?,
+                };
+                args.SetResponse(&resp)?;
+                counter.fetch_add(1, Ordering::Relaxed);
                 Ok(())
             })),
             &mut token,
