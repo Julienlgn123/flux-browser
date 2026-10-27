@@ -3,6 +3,7 @@
 
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -63,12 +64,29 @@ fn redirect_body(data_url: &str) -> Option<(Vec<u8>, String)> {
     Some((bytes, mime))
 }
 
-/// Filtre chaque requête de la page avec le moteur EasyList / uBlock.
+/// Ce que la page a contacté : domaine → (requêtes, requêtes bloquées).
+pub type Domains = Rc<RefCell<HashMap<String, (u32, u32)>>>;
+
+pub fn host_of(uri: &str) -> String {
+    let rest = uri.split_once("://").map_or(uri, |x| x.1);
+    let h = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let h = h.rsplit_once('@').map_or(h, |x| x.1);
+    h.split(':').next().unwrap_or(h).to_ascii_lowercase()
+}
+
+pub fn domain_matches(host: &str, domain: &str) -> bool {
+    host == domain || host.strip_suffix(domain).is_some_and(|p| p.ends_with('.'))
+}
+
+/// Filtre chaque requête de la page avec le moteur EasyList / uBlock, note les domaines
+/// contactés et retire l'en-tête `Cookie` vers les domaines dont l'utilisateur refuse les cookies.
 /// `page_url` est l'adresse du document principal (sert aux règles tierces et `domain=`).
 pub fn install_blocker(
     view: &WebView,
     engine: Rc<RefCell<Engine>>,
     page_url: Rc<RefCell<String>>,
+    domains: Domains,
+    cookie_block: Rc<RefCell<Vec<String>>>,
     enabled: Arc<AtomicBool>,
     counter: Arc<AtomicU64>,
 ) -> windows::core::Result<()> {
@@ -80,9 +98,6 @@ pub fn install_blocker(
         wv.add_WebResourceRequested(
             &WebResourceRequestedEventHandler::create(Box::new(move |_, args| {
                 let Some(args) = args else { return Ok(()) };
-                if !enabled.load(Ordering::Relaxed) {
-                    return Ok(());
-                }
                 let req = args.Request()?;
                 let mut uri = PWSTR::null();
                 req.Uri(&mut uri)?;
@@ -90,23 +105,33 @@ pub fn install_blocker(
                 if !uri.starts_with("http") {
                     return Ok(());
                 }
+                let host = host_of(&uri);
+                if cookie_block.borrow().iter().any(|d| domain_matches(&host, d)) {
+                    if let Ok(h) = req.Headers() {
+                        let _ = h.RemoveHeader(&HSTRING::from("Cookie"));
+                    }
+                }
                 let mut ctx = COREWEBVIEW2_WEB_RESOURCE_CONTEXT_OTHER;
                 args.ResourceContext(&mut ctx)?;
                 let page = page_url.borrow();
                 // Ne jamais bloquer la navigation principale elle-même.
-                if ctx == COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT && *page == uri {
-                    return Ok(());
+                let main_doc = ctx == COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT && *page == uri;
+                let mut result = None;
+                if enabled.load(Ordering::Relaxed) && !main_doc {
+                    let mut method = PWSTR::null();
+                    req.Method(&mut method)?;
+                    let method = take_pwstr(method);
+                    if let Ok(request) = Request::new(&uri, &page, request_type(ctx), &method) {
+                        result = Some(engine.borrow().check_network_request(&request)).filter(|r| r.should_block());
+                    }
                 }
-                let mut method = PWSTR::null();
-                req.Method(&mut method)?;
-                let method = take_pwstr(method);
-                let Ok(request) = Request::new(&uri, &page, request_type(ctx), &method) else {
-                    return Ok(());
-                };
-                let result = engine.borrow().check_network_request(&request);
-                if !result.should_block() {
-                    return Ok(());
+                {
+                    let mut d = domains.borrow_mut();
+                    let e = d.entry(host).or_default();
+                    e.0 += 1;
+                    e.1 += result.is_some() as u32;
                 }
+                let Some(result) = result else { return Ok(()) };
                 let resp = match result.redirect.as_deref().and_then(redirect_body) {
                     Some((body, mime)) => env.CreateWebResourceResponse(
                         SHCreateMemStream(Some(&body)).as_ref(),
@@ -234,19 +259,16 @@ pub fn cdp(view: &WebView, method: &str, params: &str) {
     }
 }
 
-/// Compte les octets reçus par l'onglet (réseau réel, en-têtes compris).
-pub fn watch_network(view: &WebView, received: Rc<Cell<u64>>) {
+fn on_cdp_event(view: &WebView, event: &str, mut f: impl FnMut(String) + 'static) {
     unsafe {
-        if let Ok(rx) = view.webview().GetDevToolsProtocolEventReceiver(&HSTRING::from("Network.dataReceived")) {
+        if let Ok(rx) = view.webview().GetDevToolsProtocolEventReceiver(&HSTRING::from(event)) {
             let mut token = 0i64;
             let _ = rx.add_DevToolsProtocolEventReceived(
                 &DevToolsProtocolEventReceivedEventHandler::create(Box::new(move |_, args| {
                     if let Some(args) = args {
                         let mut json = PWSTR::null();
                         args.ParameterObjectAsJson(&mut json)?;
-                        let v: serde_json::Value = serde_json::from_str(&take_pwstr(json)).unwrap_or_default();
-                        let n = v["encodedDataLength"].as_u64().filter(|&n| n > 0).or(v["dataLength"].as_u64());
-                        received.set(received.get() + n.unwrap_or(0));
+                        f(take_pwstr(json));
                     }
                     Ok(())
                 })),
@@ -254,8 +276,48 @@ pub fn watch_network(view: &WebView, received: Rc<Cell<u64>>) {
             );
         }
     }
+}
+
+/// Compte les octets reçus par l'onglet (réseau réel, en-têtes compris) et garde la
+/// réponse du document principal (IP du serveur, certificat, en-têtes) pour « Infos du site ».
+pub fn watch_network(
+    view: &WebView,
+    received: Rc<Cell<u64>>,
+    doc: Rc<RefCell<Option<serde_json::Value>>>,
+    page_url: Rc<RefCell<String>>,
+) {
+    on_cdp_event(view, "Network.dataReceived", move |json| {
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap_or_default();
+        let n = v["encodedDataLength"].as_u64().filter(|&n| n > 0).or(v["dataLength"].as_u64());
+        received.set(received.get() + n.unwrap_or(0));
+    });
+    on_cdp_event(view, "Network.responseReceived", move |json| {
+        // Seules les réponses de type document nous intéressent : on évite de décoder les autres.
+        if !json.contains("\"type\":\"Document\"") {
+            return;
+        }
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap_or_default();
+        let url = v["response"]["url"].as_str().unwrap_or("");
+        if url.split('#').next() == Some(page_url.borrow().as_str()) {
+            *doc.borrow_mut() = Some(v["response"].clone());
+        }
+    });
     cdp(view, "Network.enable", "{}");
     cdp(view, "Performance.enable", "{}");
+}
+
+/// Appel DevTools avec son résultat (JSON), ou `None` en cas d'échec.
+pub fn cdp_call(view: &WebView, method: &str, params: &str, done: impl FnOnce(Option<serde_json::Value>) + 'static) {
+    unsafe {
+        let _ = view.webview().CallDevToolsProtocolMethod(
+            &HSTRING::from(method),
+            &HSTRING::from(params),
+            &CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |res, json| {
+                done(res.is_ok().then(|| serde_json::from_str(&json).ok()).flatten());
+                Ok(())
+            })),
+        );
+    }
 }
 
 /// Débit maximal de l'onglet en Ko/s (0 = illimité).

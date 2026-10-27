@@ -133,6 +133,37 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .keycap.rec { border-color: var(--accent); color: var(--accent); }
 .status { font-size: 12px; } .status.ok { color: var(--ok); } .status.bad { color: #e5533d; }
 
+/* Infos du site */
+#site-btn { width: 24px; height: 24px; margin-left: -6px; border-radius: 6px; display: grid; place-items: center; color: var(--dim); flex: none; }
+#site-btn:hover { background: var(--tab-h); color: var(--fg); }
+#site-btn.secure { color: var(--ok); }
+#site-btn.insecure { color: #e5533d; }
+.site-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.site-head .fav { width: 36px; height: 36px; border-radius: 9px; font-size: 16px; }
+.site-head .fav img { width: 26px; height: 26px; }
+.site-head h2 { margin: 0; }
+.site-head small { color: var(--dim); display: block; }
+.site-head .btn { margin-left: auto; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.box { background: var(--bar); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.box h4 { font-size: 12px; color: var(--dim); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 12.5px; }
+.kv span:nth-child(odd) { color: var(--dim); }
+.kv span:nth-child(even) { overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 6px 10px; border-radius: 8px; background: var(--bar); font-size: 12.5px; }
+.chip small { color: var(--dim); margin-left: 6px; }
+.score { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+.score b { font: 600 34px var(--font); font-variant-numeric: tabular-nums; }
+.finding { display: flex; gap: 12px; align-items: flex-start; padding: 9px 12px; border-radius: 8px; background: var(--bar); margin-top: 4px; }
+.finding .sev { flex: none; width: 70px; text-align: center; font-size: 11px; font-weight: 600; padding: 2px 0; border-radius: 99px; }
+.sev.high { background: #e5533d33; color: #ff7a66; } .sev.medium { background: #e5a10033; color: #f5b83d; }
+.sev.low { background: #3e63dd33; color: #8ea8ff; } .sev.info { background: var(--tab); color: var(--dim); } .sev.ok { background: #2fbf7a22; color: var(--ok); }
+.finding small { display: block; color: var(--dim); margin-top: 2px; }
+.badge { font-size: 10.5px; padding: 1px 7px; border-radius: 99px; background: var(--tab); color: var(--dim); margin-left: 6px; }
+.badge.warn { background: #e5a10022; color: #f5b83d; }
+.toggle-cookie { font-size: 12px; }
+
 /* Historique */
 .hist-head { display: flex; gap: 10px; align-items: center; margin: 4px 0 6px; }
 .hist-head input { flex: 1; height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--field); color: var(--fg); font: 14px var(--font); outline: 0; user-select: text; }
@@ -176,7 +207,7 @@ td.num, th.num { text-align: right; }
   <button class="ib" id="fwd" title="Suivante (Alt+→)"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
   <button class="ib" id="reload" title="Actualiser (F5)"></button>
   </span>
-  <label id="omni"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+  <label id="omni"><button id="site-btn" title="Infos du site"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
     <input id="q" spellcheck="false" autocomplete="off" placeholder="Rechercher ou saisir une adresse">
     <button id="star" title="Ajouter aux favoris (Ctrl+D)"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></button></label>
   <button class="pill" id="mem" title="Consommation en temps réel — cliquer pour le moniteur">—</button>
@@ -196,6 +227,9 @@ td.num, th.num { text-align: right; }
     <div id="ntp-drop"></div>
   </div>
 </div>
+
+<!-- Infos du site -->
+<div class="panel-wrap" id="site"><div class="content" style="max-width:1100px;margin:0 auto" id="site-body"></div></div>
 
 <!-- Historique -->
 <div class="panel-wrap" id="history"><div class="content" style="max-width:900px;margin:0 auto">
@@ -383,6 +417,7 @@ function renderTabs() {
   const t = tabs.find(t => t.id === active);
   if (document.activeElement !== $('#q')) $('#q').value = t ? t.url : '';
   renderStar();
+  renderSiteBtn();
   $('#reload').innerHTML = t && t.loading ? ICON_X : ICON_RELOAD;
   document.title = (t && t.title) || 'Flux';
   syncHeight();
@@ -522,6 +557,8 @@ function openPanel(name) {
   panel = panel === name ? null : name;
   $('#settings').classList.toggle('show', panel === 'settings');
   $('#history').classList.toggle('show', panel === 'history');
+  $('#site').classList.toggle('show', panel === 'site');
+  if (panel === 'site') { siteState = { loading: true }; renderSite(); send({ t: 'site_info' }); }
   if (panel === 'history') { send({ t: 'history' }); $('#hist-q').value = ''; setTimeout(() => $('#hist-q').focus(), 0); }
   $('#monitor').classList.toggle('show', panel === 'monitor');
   $('#histcount').textContent = `${hist.size} pages mémorisées · chiffré`;
@@ -537,6 +574,165 @@ function showSec(id) {
   $$('.sec').forEach(s => s.classList.toggle('on', s.id === 'sec-' + id));
 }
 $('#side').onclick = e => { const b = e.target.closest('button'); if (b) showSec(b.dataset.sec); };
+
+/* ---------- infos du site ---------- */
+const ICON_LOCK = '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const ICON_WARN = '<svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg>';
+const ICON_LENS = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+let siteState = {};
+function renderSiteBtn() {
+  const url = currentUrl(), b = $('#site-btn');
+  const https = /^https:/.test(url), http = /^http:/.test(url);
+  b.innerHTML = https ? ICON_LOCK : http ? ICON_WARN : ICON_LENS;
+  b.className = https ? 'secure' : http ? 'insecure' : '';
+  b.title = https ? 'Connexion chiffrée — infos du site' : http ? 'Connexion non chiffrée — infos du site' : '';
+}
+$('#site-btn').onmousedown = e => { if (currentUrl()) { e.preventDefault(); openPanel('site'); } };
+
+const fmtBytes = n => n < 1024 ? n + ' o' : n < 1048576 ? (n / 1024).toFixed(1) + ' Ko' : (n / 1048576).toFixed(1) + ' Mo';
+const fmtDate = s => new Date(s * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+const kv = rows => `<div class="kv">${rows.filter(r => r[1] !== undefined && r[1] !== '' && r[1] !== null).map(([k, v]) => `<span>${esc(k)}</span><span>${esc(v)}</span>`).join('')}</div>`;
+const header = (doc, name) => { const h = (doc && doc.headers) || {}; for (const k in h) if (k.toLowerCase() === name) return String(h[k]); return ''; };
+
+/** Technologies révélées par les en-têtes HTTP (hébergement, CDN, serveur). */
+function headerTech(doc) {
+  const t = [], h = n => header(doc, n), add = (name, cat, ver) => t.push({ name, cat, ver: ver || '' });
+  const server = h('server');
+  if (server) add(server.split(/[\/ ]/)[0], 'Serveur web', (server.match(/\/([\d.]+)/) || [])[1]);
+  const pb = h('x-powered-by');
+  if (pb) add(pb.split(/[\/ ]/)[0], 'Plateforme serveur', (pb.match(/\/([\d.]+)/) || [])[1]);
+  if (h('cf-ray')) add('Cloudflare', 'CDN / protection');
+  if (h('x-vercel-id')) add('Vercel', 'Hébergement');
+  if (h('x-nf-request-id')) add('Netlify', 'Hébergement');
+  if (h('x-github-request-id')) add('GitHub Pages', 'Hébergement');
+  if (h('x-amz-cf-id')) add('Amazon CloudFront', 'CDN');
+  if (h('x-served-by').includes('cache-') || h('x-fastly-request-id')) add('Fastly', 'CDN');
+  if (h('x-azure-ref')) add('Azure Front Door', 'CDN');
+  if (/akamai/i.test(server) || h('x-akamai-transformed')) add('Akamai', 'CDN');
+  if (/gws|ESF/.test(server)) add('Google', 'Infrastructure');
+  if (/h3/.test(h('alt-svc'))) add('HTTP/3 (QUIC)', 'Protocole');
+  return t;
+}
+
+/** Analyse passive : uniquement ce que le site envoie au navigateur, aucun test intrusif. */
+function analyze(st) {
+  const f = [], add = (sev, title, detail) => f.push({ sev, title, detail });
+  const url = st.url || '', doc = st.doc, page = st.page || {}, sec = doc && doc.securityDetails, h = n => header(doc, n);
+  const https = url.startsWith('https:');
+  if (!https) add('high', 'Connexion non chiffrée (HTTP)', 'Tout ce qui est échangé (formulaires, cookies) circule en clair sur le réseau.');
+  if (page.passwordOnHttp) add('high', 'Mot de passe demandé sur une page non chiffrée', 'Le mot de passe peut être intercepté.');
+  if (page.httpForms) add('high', `${page.httpForms} formulaire(s) envoyé(s) en HTTP`, 'Les données saisies partent sans chiffrement.');
+  if (sec) {
+    if (/TLS 1\.[01]$|SSL/.test(sec.protocol)) add('high', `Protocole ${sec.protocol} obsolète`, 'TLS 1.2 minimum est recommandé.');
+    const days = Math.floor((sec.validTo - Date.now() / 1000) / 86400);
+    if (days < 0) add('high', 'Certificat expiré', `Expiré depuis ${-days} jour(s).`);
+    else if (days < 14) add('medium', `Certificat expirant dans ${days} jour(s)`, 'Il doit être renouvelé rapidement.');
+    if (sec.certificateTransparencyCompliance === 'not-compliant') add('medium', 'Certificat hors Certificate Transparency', 'Le certificat n\'est pas publié dans les journaux publics.');
+  }
+  if (page.mixed) add('medium', `${page.mixed} ressource(s) chargée(s) en HTTP sur une page HTTPS`, 'Contenu mixte : ces éléments peuvent être modifiés en chemin.');
+  if (doc) {
+    if (https && !h('strict-transport-security')) add('medium', 'HSTS absent', 'Le site n\'impose pas HTTPS aux visites suivantes (risque de rétrogradation en HTTP).');
+    const csp = h('content-security-policy');
+    if (!csp) add('medium', 'Pas de Content-Security-Policy', 'Aucune protection supplémentaire contre l\'injection de scripts (XSS).');
+    else if (/'unsafe-inline'/.test(csp) && !/nonce-|sha256-/.test(csp)) add('low', 'CSP autorise les scripts en ligne', '\'unsafe-inline\' affaiblit la protection contre le XSS.');
+    if (!h('x-frame-options') && !/frame-ancestors/.test(csp)) add('low', 'Protection anti-clickjacking absente', 'Ni X-Frame-Options ni frame-ancestors : la page peut être intégrée par un autre site.');
+    if (h('x-content-type-options').toLowerCase() !== 'nosniff') add('low', 'X-Content-Type-Options absent', 'Le navigateur peut deviner le type des fichiers (MIME sniffing).');
+    if (!h('referrer-policy')) add('info', 'Referrer-Policy absente', 'Le comportement par défaut du navigateur s\'applique.');
+    if (!h('permissions-policy')) add('info', 'Permissions-Policy absente', 'Les accès caméra, micro, position… ne sont pas restreints par le site.');
+    const leak = [h('server'), h('x-powered-by'), h('x-aspnet-version')].filter(v => /\d/.test(v));
+    if (leak.length) add('low', 'Version du logiciel serveur exposée', leak.join(' · ') + ' — aide un attaquant à cibler des failles connues.');
+  } else add('info', 'En-têtes indisponibles', 'Rechargez la page avec le panneau fermé pour une analyse complète.');
+  const jq = (page.tech || []).find(t => t.name === 'jQuery');
+  if (jq && jq.ver && jq.ver.split('.').map(Number).reduce((a, n, i) => a + n / 100 ** i, 0) < 3.05)
+    add('medium', `jQuery ${jq.ver} vulnérable`, 'Versions < 3.5.0 : failles XSS connues (CVE-2020-11022 / 11023).');
+  if (page.noSri && page.noSri.length) add('info', `${page.noSri.length} domaine(s) de scripts tiers sans contrôle d'intégrité (SRI)`, page.noSri.slice(0, 6).join(', '));
+  const cookies = st.cookies || [];
+  const noSecure = cookies.filter(c => !c.secure).length, noHttp = cookies.filter(c => !c.httpOnly && /sess|auth|token|sid|login/i.test(c.name)).length;
+  if (https && noSecure) add('low', `${noSecure} cookie(s) sans l'attribut Secure`, 'Ils pourraient être envoyés sur une connexion non chiffrée.');
+  if (noHttp) add('medium', `${noHttp} cookie(s) de session lisible(s) par JavaScript`, 'Sans HttpOnly, un script injecté peut voler la session.');
+  const weight = { high: 25, medium: 10, low: 4, info: 0 };
+  const score = Math.max(0, 100 - f.reduce((a, x) => a + weight[x.sev], 0));
+  const order = { high: 0, medium: 1, low: 2, info: 3 };
+  return { score, findings: f.sort((a, b) => order[a.sev] - order[b.sev]) };
+}
+
+function renderSite() {
+  const st = siteState, body = $('#site-body');
+  if (st.none) { body.innerHTML = '<h2>Infos du site</h2><p>Aucune page ouverte dans cet onglet.</p>'; return; }
+  if (st.loading && !st.url) { body.innerHTML = '<h2>Infos du site</h2><p>Analyse en cours…</p>'; return; }
+  const doc = st.doc, sec = doc && doc.securityDetails, page = st.page || {}, host = st.host || '';
+  const hostInfo = st.hosting || {};
+  const days = sec ? Math.floor((sec.validTo - Date.now() / 1000) / 86400) : null;
+  const tech = [...headerTech(doc), ...(page.tech || [])];
+  const { score, findings } = analyze(st);
+  const blocked = new Set(st.cookie_block || []);
+  const cookies = (st.cookies || []).slice().sort((a, b) => a.domain.localeCompare(b.domain) || a.name.localeCompare(b.name));
+  const third = d => !d.replace(/^\./, '').endsWith(host.split('.').slice(-2).join('.'));
+  const domains = (st.domains || []).slice().sort((a, b) => b.requests - a.requests);
+  const scoreColor = score >= 80 ? 'var(--ok)' : score >= 50 ? '#f5b83d' : '#ff7a66';
+
+  body.innerHTML = `
+  <div class="site-head">${fav(st.url)}<div><h2>${esc(host)}</h2><small>${esc(st.url)}</small></div>
+    <button class="btn danger" id="site-clear">Effacer cookies et données de ce site</button></div>
+  <div class="grid3">
+    <div class="box"><h4>Connexion</h4>${kv([
+      ['Adresse IP', doc ? doc.remoteIPAddress : '—'], ['Port', doc && doc.remotePort],
+      ['Protocole', doc && doc.protocol && doc.protocol.toUpperCase()], ['Chiffrement', sec ? `${sec.protocol} · ${sec.cipher}` : (st.url.startsWith('https') ? '' : 'Aucun')],
+      ['Échange de clés', sec && sec.keyExchangeGroup], ['Code HTTP', doc && doc.status],
+    ])}</div>
+    <div class="box"><h4>Hébergement</h4>${hostInfo.org || hostInfo.city ? kv([
+      ['Opérateur', hostInfo.org], ['Nom d\'hôte', hostInfo.hostname], ['Ville', hostInfo.city], ['Région', hostInfo.region], ['Pays', hostInfo.country],
+    ]) + '<small style="color:var(--dim);display:block;margin-top:8px">Données ipinfo.io</small>' : `<span style="color:var(--dim)">${doc && doc.remoteIPAddress ? 'Recherche…' : 'IP inconnue'}</span>`}</div>
+    <div class="box"><h4>Certificat</h4>${sec ? kv([
+      ['Émis pour', sec.subjectName], ['Émetteur', sec.issuer], ['Valide du', fmtDate(sec.validFrom)],
+      ['Jusqu\'au', `${fmtDate(sec.validTo)} (${days} j)`], ['Domaines couverts', (sec.sanList || []).length],
+      ['Transparence', sec.certificateTransparencyCompliance === 'compliant' ? 'Conforme' : sec.certificateTransparencyCompliance],
+    ]) : '<span style="color:var(--dim)">' + (st.url.startsWith('https') ? 'Indisponible — rechargez la page' : 'Aucun : site non chiffré') + '</span>'}</div>
+  </div>
+
+  <h3>Analyse de sécurité <span class="badge">passive, aucun test intrusif</span></h3>
+  <div class="score"><b style="color:${scoreColor}">${score}</b><span style="color:var(--dim)">/ 100 · ${findings.filter(f => f.sev !== 'info').length} point(s) à surveiller</span></div>
+  ${findings.length ? findings.map(f => `<div class="finding"><span class="sev ${f.sev}">${{ high: 'Élevé', medium: 'Moyen', low: 'Faible', info: 'Info' }[f.sev]}</span><div>${esc(f.title)}<small>${esc(f.detail)}</small></div></div>`).join('')
+    : '<div class="finding"><span class="sev ok">OK</span><div>Aucun problème détecté</div></div>'}
+
+  <h3>Technologies</h3>
+  <div class="chips">${tech.length ? tech.map(t => `<span class="chip">${esc(t.name)}${t.ver ? ' ' + esc(t.ver) : ''}<small>${esc(t.cat)}</small></span>`).join('') : '<span style="color:var(--dim)">Rien de reconnaissable</span>'}</div>
+
+  <h3>Cookies (${cookies.length})</h3>
+  <div class="opt col">${cookies.length ? `<table><thead><tr><th>Nom</th><th>Domaine</th><th>Expire</th><th>Attributs</th><th class="num">Taille</th><th></th></tr></thead><tbody>${cookies.map((c, i) => `<tr>
+      <td class="title" title="${esc(c.value)}">${esc(c.name)}</td>
+      <td>${esc(c.domain)}${third(c.domain) ? '<span class="badge warn">tiers</span>' : ''}</td>
+      <td>${c.session || c.expires < 0 ? 'Session' : fmtDate(c.expires)}</td>
+      <td>${[c.secure && 'Secure', c.httpOnly && 'HttpOnly', c.sameSite].filter(Boolean).join(' · ')}</td>
+      <td class="num">${fmtBytes(c.size || 0)}</td>
+      <td class="num"><button class="mini" data-cookie="${i}">Supprimer</button></td></tr>`).join('')}</tbody></table>`
+      : '<span style="color:var(--dim)">Aucun cookie pour ce site.</span>'}</div>
+
+  <h3>Données enregistrées par le site</h3>
+  <div class="chips">
+    <span class="chip">localStorage<small>${page.localStorage ? `${page.localStorage.keys} clé(s) · ${fmtBytes(page.localStorage.bytes)}` : '—'}</small></span>
+    <span class="chip">sessionStorage<small>${page.sessionStorage ? `${page.sessionStorage.keys} clé(s) · ${fmtBytes(page.sessionStorage.bytes)}` : '—'}</small></span>
+    <span class="chip">Service worker<small>${page.serviceWorker ? 'actif' : 'aucun'}</small></span>
+    <span class="chip">Cadres intégrés<small>${page.iframes ?? '—'}</small></span>
+  </div>
+
+  <h3>Domaines contactés (${domains.length})</h3>
+  <div class="opt col"><table><thead><tr><th>Domaine</th><th class="num">Requêtes</th><th class="num">Bloquées</th><th>Cookies</th></tr></thead><tbody>${domains.map(d => `<tr>
+      <td class="title">${esc(d.host)}${d.third ? '<span class="badge warn">tiers</span>' : ''}</td>
+      <td class="num">${d.requests}</td><td class="num">${d.blocked || '—'}</td>
+      <td><label class="toggle-cookie"><input type="checkbox" data-block="${esc(d.host)}" ${blocked.has(d.host) ? 'checked' : ''}> Refuser</label></td></tr>`).join('')}</tbody></table></div>`;
+
+  $('#site-clear').onclick = () => { if (confirm(`Effacer les cookies et les données de ${host} ? Vous serez déconnecté de ce site.`)) send({ t: 'site_clear' }); };
+  body.querySelectorAll('[data-cookie]').forEach(b => b.onclick = () => {
+    const c = cookies[+b.dataset.cookie];
+    send({ t: 'cookie_delete', name: c.name, domain: c.domain, path: c.path });
+  });
+  body.querySelectorAll('[data-block]').forEach(cb => cb.onchange = () => {
+    const d = cb.dataset.block;
+    siteState.cookie_block = cb.checked ? [...(siteState.cookie_block || []), d] : (siteState.cookie_block || []).filter(x => x !== d);
+    send({ t: 'cookie_block', domain: d, on: cb.checked });
+  });
+}
 
 /* ---------- historique ---------- */
 let histItems = [], histShown = 300;
@@ -757,6 +953,7 @@ addEventListener('keydown', e => {
   else if (c && e.shiftKey && k === 'escape') { e.preventDefault(); openPanel('monitor'); return; }
   else if (c && k === 'd') { e.preventDefault(); toggleFav(); return; }
   else if (c && k === 'h') { e.preventDefault(); openPanel('history'); return; }
+  else if (c && k === 'i') { e.preventDefault(); if (currentUrl()) openPanel('site'); return; }
   else if (e.altKey && k === 'arrowleft') { e.preventDefault(); send({ t: 'back' }); return; }
   else if (e.altKey && k === 'arrowright') { e.preventDefault(); send({ t: 'forward' }); return; }
   else if (k === 'escape' && panel) { openPanel(panel); return; }
@@ -781,6 +978,15 @@ window.flux = m => {
       for (const v of m.items) hist.set(v.url, v);
       break;
     case 'favs': favs = m.items; renderFavs(); break;
+    case 'site': {
+      if (m.part === 'none') siteState = { none: true };
+      else if (m.part === 'doc') siteState = { ...siteState, loading: false, url: m.url, host: m.host, doc: m.doc, domains: m.domains, cookie_block: m.cookie_block };
+      else if (m.part === 'page') siteState.page = m.data;
+      else if (m.part === 'cookies') siteState.cookies = m.cookies;
+      else if (m.part === 'hosting') siteState.hosting = m.data;
+      if (panel === 'site') renderSite();
+      break;
+    }
     case 'history': histItems = m.items; histShown = 300; renderHistory(); break;
     case 'sugg': {
       const o = activeOmni;

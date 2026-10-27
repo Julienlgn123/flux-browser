@@ -55,6 +55,8 @@ const UI_HTML: &str = include_str!("../ui/index.html");
 const BAR_HTML: &str = include_str!("../ui/bar.html");
 /// Logique de recherche partagée par la barre d'adresse et la barre rapide.
 const OMNI_JS: &str = include_str!("../ui/omni.js");
+/// Analyse passive de la page pour « Infos du site ».
+const SCAN_JS: &str = include_str!("../ui/scan.js");
 /// Refus automatique des bannières de cookies, injecté dans chaque page et cadre.
 const CONSENT_JS: &str = include_str!("../ui/consent.js");
 
@@ -129,6 +131,10 @@ pub enum UserEvent {
     HotkeyStatus(bool, String),
     /// Commande d'un autre lancement de Flux (instance unique).
     Command(String),
+    /// Morceau d'information pour le panneau « Infos du site », transmis tel quel à l'interface.
+    SitePart(serde_json::Value),
+    /// Cookies à supprimer ; `true` = rafraîchir ensuite la liste du panneau.
+    DeleteCookies(Vec<serde_json::Value>, bool),
     TrayOpen,
     MenuItem(String),
 }
@@ -163,6 +169,10 @@ enum UiMsg {
     ClearBackground,
     History,
     HistoryDelete { url: String },
+    SiteInfo,
+    CookieDelete { name: String, domain: String, path: String },
+    CookieBlock { domain: String, on: bool },
+    SiteClear,
 }
 
 #[derive(Deserialize)]
@@ -189,6 +199,10 @@ struct Tab {
     page_url: Rc<RefCell<String>>,
     /// Exceptions cosmétiques (`#@#`) du site courant.
     cosmetic_exceptions: HashSet<String>,
+    /// Domaines contactés par la page courante (requêtes, bloquées).
+    domains: wv2::Domains,
+    /// Réponse du document principal (IP, certificat, en-têtes), via DevTools.
+    doc: Rc<RefCell<Option<serde_json::Value>>>,
     /// Octets reçus depuis la création de la vue (compteur DevTools).
     received: Rc<Cell<u64>>,
     received_prev: u64,
@@ -224,6 +238,10 @@ struct App {
     update_filters: Sender<()>,
     blocker_on: Arc<AtomicBool>,
     blocked: Arc<AtomicU64>,
+    /// Domaines aux cookies refusés, partagé avec le filtre réseau de chaque onglet.
+    cookie_block: Rc<RefCell<Vec<String>>>,
+    /// Hébergeur déjà identifié pour chaque IP.
+    host_cache: HashMap<String, serde_json::Value>,
     suggest: Sender<suggest::Request>,
     hotkey: system::Hotkey,
     hotkey_status: (bool, String),
@@ -238,6 +256,15 @@ struct App {
     minimized: bool,
     ticks: u64,
     _tray: Option<TrayIcon>,
+}
+
+/// Domaine « enregistrable » approximatif (exemple.co.uk, exemple.fr) pour distinguer
+/// le site lui-même de ses tiers.
+fn site_of(host: &str) -> String {
+    let parts: Vec<&str> = host.split('.').collect();
+    let n = parts.len();
+    let keep = if n >= 3 && matches!(parts[n - 2], "co" | "com" | "org" | "net" | "gov" | "ac" | "gouv") { 3 } else { 2 };
+    parts[n.saturating_sub(keep)..].join(".")
 }
 
 fn strip_fragment(url: &str) -> &str {
@@ -373,8 +400,9 @@ impl App {
         let (p1, p2, p3, p4) = (p.clone(), p.clone(), p.clone(), p);
         let tab = self.tab(id).expect("onglet existant");
         let (page_url, received) = (tab.page_url.clone(), tab.received.clone());
+        let (domains, doc) = (tab.domains.clone(), tab.doc.clone());
         *page_url.borrow_mut() = strip_fragment(url).to_string();
-        let nav_url = page_url.clone();
+        let (nav_url, nav_domains, nav_doc) = (page_url.clone(), domains.clone(), doc.clone());
         let consent = if self.settings().reject_cookies { CONSENT_JS } else { "" };
         let view = WebViewBuilder::new_with_web_context(&mut self.ctx)
             .with_url(url)
@@ -386,6 +414,9 @@ impl App {
             .with_devtools(true)
             .with_navigation_handler(move |u| {
                 *nav_url.borrow_mut() = strip_fragment(&u).to_string();
+                // Nouvelle page : on repart de zéro pour les domaines contactés et le document.
+                nav_domains.borrow_mut().clear();
+                nav_doc.borrow_mut().take();
                 true
             })
             .with_ipc_handler(move |r| {
@@ -412,13 +443,15 @@ impl App {
         let _ = wv2::install_blocker(
             &view,
             self.engine.clone(),
-            page_url,
+            page_url.clone(),
+            domains,
+            self.cookie_block.clone(),
             self.blocker_on.clone(),
             self.blocked.clone(),
         );
         let s = self.settings();
         wv2::set_autofill(&view, s.passwords, s.autofill);
-        wv2::watch_network(&view, received);
+        wv2::watch_network(&view, received, doc, page_url);
         if s.net_limit > 0 {
             wv2::set_net_limit(&view, s.net_limit);
         }
@@ -439,6 +472,8 @@ impl App {
             view: None,
             page_url: Rc::default(),
             cosmetic_exceptions: HashSet::new(),
+            domains: Rc::default(),
+            doc: Rc::default(),
             received: Rc::default(),
             received_prev: 0,
             heap: 0.0,
@@ -785,6 +820,31 @@ impl App {
                 self.store.save_bookmarks();
                 self.push_bookmarks();
             }
+            UiMsg::SiteInfo => self.site_info(),
+            UiMsg::CookieDelete { name, domain, path } => {
+                self.delete_cookies(vec![json!({ "name": name, "domain": domain, "path": path })], true);
+            }
+            UiMsg::CookieBlock { domain, on } => {
+                let mut s = self.settings().clone();
+                s.cookie_block.retain(|d| *d != domain);
+                if on {
+                    s.cookie_block.push(domain);
+                }
+                *self.cookie_block.borrow_mut() = s.cookie_block.clone();
+                self.apply_settings(s);
+                self.purge_blocked_cookies(true);
+            }
+            UiMsg::SiteClear => {
+                let Some(v) = self.active_view() else { return };
+                let page = self.tab(self.active).map(|t| t.page_url.borrow().clone()).unwrap_or_default();
+                let origin = page.split('/').take(3).collect::<Vec<_>>().join("/");
+                wv2::cdp(v, "Storage.clearDataForOrigin", &json!({ "origin": origin, "storageTypes": "all" }).to_string());
+                let p = self.proxy.clone();
+                wv2::cdp_call(v, "Network.getCookies", &self.cookie_urls().to_string(), move |r| {
+                    let list = r.and_then(|r| r["cookies"].as_array().cloned()).unwrap_or_default();
+                    let _ = p.send_event(UserEvent::DeleteCookies(list, true));
+                });
+            }
             UiMsg::History => self.send(json!({ "t": "history", "items": self.store.chronological() })),
             UiMsg::HistoryDelete { url } => {
                 self.store.forget(&url);
@@ -911,6 +971,9 @@ impl App {
         }
         if self.ticks % 30 == 0 {
             self.persist();
+        }
+        if self.ticks % 5 == 0 {
+            self.purge_blocked_cookies(false);
         }
     }
 
@@ -1069,6 +1132,117 @@ impl App {
         } else {
             self.show_bar();
         }
+    }
+
+    /// Adresses dont on veut les cookies : la page et tous les domaines qu'elle a contactés.
+    fn cookie_urls(&self) -> serde_json::Value {
+        let Some(t) = self.tab(self.active) else { return json!({ "urls": [] }) };
+        let mut urls = vec![t.page_url.borrow().clone()];
+        urls.extend(t.domains.borrow().keys().map(|h| format!("https://{h}/")));
+        json!({ "urls": urls })
+    }
+
+    fn fetch_cookies(&self) {
+        let Some(v) = self.active_view() else { return };
+        let p = self.proxy.clone();
+        wv2::cdp_call(v, "Network.getCookies", &self.cookie_urls().to_string(), move |r| {
+            let cookies = r.map(|r| r["cookies"].clone()).unwrap_or(json!([]));
+            let _ = p.send_event(UserEvent::SitePart(json!({ "part": "cookies", "cookies": cookies })));
+        });
+    }
+
+    /// Supprime les cookies des domaines refusés (ils peuvent encore être posés par une réponse).
+    fn purge_blocked_cookies(&self, refresh: bool) {
+        let blocked = self.cookie_block.borrow().clone();
+        let Some(v) = self.active_view().or_else(|| self.views().next()) else { return };
+        if blocked.is_empty() {
+            if refresh {
+                self.fetch_cookies();
+            }
+            return;
+        }
+        let p = self.proxy.clone();
+        wv2::cdp_call(v, "Network.getAllCookies", "{}", move |r| {
+            let list: Vec<_> = r
+                .and_then(|r| r["cookies"].as_array().cloned())
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|c| {
+                    let d = c["domain"].as_str().unwrap_or("").trim_start_matches('.').to_ascii_lowercase();
+                    blocked.iter().any(|b| wv2::domain_matches(&d, b))
+                })
+                .collect();
+            if !list.is_empty() || refresh {
+                let _ = p.send_event(UserEvent::DeleteCookies(list, refresh));
+            }
+        });
+    }
+
+    fn delete_cookies(&self, list: Vec<serde_json::Value>, refresh: bool) {
+        if let Some(v) = self.active_view().or_else(|| self.views().next()) {
+            for c in list {
+                // L'URL est nécessaire pour les cookies propres à un sous-domaine (sans « . » initial).
+                let domain = c["domain"].as_str().unwrap_or("");
+                let path = c["path"].as_str().unwrap_or("/");
+                let url = format!("https://{}{path}", domain.trim_start_matches('.'));
+                let args = json!({ "name": c["name"], "domain": domain, "path": path, "url": url });
+                wv2::cdp(v, "Network.deleteCookies", &args.to_string());
+            }
+        }
+        if refresh {
+            self.fetch_cookies();
+        }
+    }
+
+    /// Rassemble les informations du site ouvert. Chaque partie arrive séparément.
+    fn site_info(&mut self) {
+        let Some(tab) = self.tab(self.active) else { return };
+        let Some(view) = &tab.view else {
+            self.send(json!({ "t": "site", "part": "none" }));
+            return;
+        };
+        let page = tab.page_url.borrow().clone();
+        let host = wv2::host_of(&page);
+        let doc = tab.doc.borrow().clone();
+        let domains: Vec<_> = tab
+            .domains
+            .borrow()
+            .iter()
+            .map(|(h, (n, b))| json!({ "host": h, "requests": n, "blocked": b, "third": site_of(h) != site_of(&host) }))
+            .collect();
+        self.send(json!({
+            "t": "site", "part": "doc", "url": page, "host": host, "doc": doc, "domains": domains,
+            "cookie_block": self.settings().cookie_block,
+        }));
+
+        let p = self.proxy.clone();
+        let scan = json!({ "expression": SCAN_JS, "returnByValue": true }).to_string();
+        wv2::cdp_call(view, "Runtime.evaluate", &scan, move |r| {
+            let data = r.map(|r| r["result"]["value"].clone()).unwrap_or_default();
+            let _ = p.send_event(UserEvent::SitePart(json!({ "part": "page", "data": data })));
+        });
+        self.fetch_cookies();
+
+        // Hébergeur : une seule requête par IP, uniquement quand le panneau est ouvert.
+        let ip = doc.as_ref().and_then(|d| d["remoteIPAddress"].as_str()).unwrap_or("").to_string();
+        if ip.is_empty() {
+            return;
+        }
+        if let Some(info) = self.host_cache.get(&ip) {
+            self.send(json!({ "t": "site", "part": "hosting", "ip": ip, "data": info }));
+            return;
+        }
+        let p = self.proxy.clone();
+        thread::spawn(move || {
+            let ip_path = ip.trim_matches(['[', ']']).to_string();
+            let data = ureq::get(&format!("https://ipinfo.io/{ip_path}/json"))
+                .call()
+                .ok()
+                .and_then(|mut r| r.body_mut().read_to_string().ok())
+                .and_then(|b| serde_json::from_str::<serde_json::Value>(&b).ok())
+                .unwrap_or_default();
+            let _ = p.send_event(UserEvent::SitePart(json!({ "part": "hosting", "ip": ip, "data": data })));
+        });
     }
 
     fn push_bookmarks(&self) {
@@ -1296,6 +1470,8 @@ fn main() {
         update_filters,
         blocker_on,
         blocked: Arc::new(AtomicU64::new(0)),
+        cookie_block: Rc::new(RefCell::new(settings.cookie_block.clone())),
+        host_cache: HashMap::new(),
         suggest,
         hotkey,
         hotkey_status: (false, settings.hotkey.clone()),
@@ -1380,6 +1556,16 @@ fn main() {
                     app.push_settings();
                 }
                 UserEvent::Command(c) => app.command(&c),
+                UserEvent::SitePart(mut v) => {
+                    if v["part"] == "hosting" {
+                        if let Some(ip) = v["ip"].as_str() {
+                            app.host_cache.insert(ip.to_string(), v["data"].clone());
+                        }
+                    }
+                    v["t"] = json!("site");
+                    app.send(v);
+                }
+                UserEvent::DeleteCookies(list, refresh) => app.delete_cookies(list, refresh),
                 UserEvent::TrayOpen => app.show_window(),
                 UserEvent::MenuItem(id) => match id.as_str() {
                     "open" => app.show_window(),

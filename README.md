@@ -45,6 +45,16 @@ Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
 - Page d'accueil épurée : logo et grande barre de recherche, sur un fond au choix (image, GIF ou vidéo locale, lue par morceaux et en pause dès qu'elle n'est pas visible), avec assombrissement réglable.
 - Favoris : étoile dans la barre d'adresse ou Ctrl+D, barre de favoris, gestion (renommer, réordonner, supprimer), prioritaires dans les suggestions ; stockés chiffrés.
 
+## Infos du site (cadenas de la barre d'adresse ou Ctrl+I)
+- Connexion : IP du serveur, port, protocole (HTTP/2, HTTP/3), version TLS, chiffrement, code HTTP.
+- Hébergement : opérateur / AS, ville, pays (via ipinfo.io, uniquement à l'ouverture du panneau).
+- Certificat : émis pour, émetteur, validité, jours restants, domaines couverts, Certificate Transparency.
+- Technologies : serveur, CDN, frameworks, CMS, outils de mesure et de pistage détectés.
+- Analyse de sécurité **passive** (aucun test intrusif) avec score : HTTPS, HSTS, CSP, anti-clickjacking, nosniff, version serveur exposée, TLS obsolète, certificat bientôt expiré, contenu mixte, formulaires en HTTP, jQuery vulnérable, scripts tiers sans SRI, cookies sans Secure/HttpOnly.
+- Cookies de la page (y compris tiers) : suppression un par un, ou tout effacer pour le site (cookies + stockage).
+- Domaines contactés (requêtes, bloquées) avec « Refuser » les cookies par domaine : l'en-tête Cookie n'est plus envoyé et les cookies posés sont supprimés en continu.
+- Données stockées : localStorage, sessionStorage, service worker, cadres intégrés.
+
 ## Personnalisation
 Thème clair/sombre/système, couleur d'accent, densité, éléments de la barre, fond de la page nouvel onglet, zoom par défaut, moteur de recherche (dont personnalisé), bangs personnels, raccourci global, page de démarrage, et feuille de style CSS libre pour toute l'interface.
 

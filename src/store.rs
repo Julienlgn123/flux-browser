@@ -71,6 +71,8 @@ pub struct Settings {
     pub tracking: String,
     /// Refuse automatiquement les bannières de cookies (Google, YouTube, Didomi, OneTrust…).
     pub reject_cookies: bool,
+    /// Domaines dont les cookies sont refusés (jamais envoyés, supprimés dès qu'ils apparaissent).
+    pub cookie_block: Vec<String>,
     /// DNS chiffré (DNS-over-HTTPS) : "off", "cloudflare", "google" ou "quad9" (redémarrage requis).
     pub dns: String,
     pub blocker: bool,
@@ -121,6 +123,7 @@ impl Default for Settings {
             autofill: true,
             tracking: "balanced".into(),
             reject_cookies: true,
+            cookie_block: Vec::new(),
             dns: "cloudflare".into(),
             blocker: true,
             sleep_min: 3,
