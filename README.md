@@ -13,7 +13,10 @@ Exécutable de ~2,3 Mo, écrit en Rust (tao + wry).
   - Filtrage cosmétique (`##`, règles génériques par classe/id) et scriptlets uBlock (`+js(...)`).
   - Listes mises à jour automatiquement toutes les 24 h en arrière-plan ; moteur compilé mis en cache (`engine.dat`) pour un démarrage instantané.
   - Score 100/100 sur adblock-tester.com.
-- `--process-per-site` (moins de processus), pas de réseau en arrière-plan, mode éco optionnel (3 processus de rendu max).
+- `--process-per-site` (moins de processus), pas de réseau en arrière-plan.
+- V8 réglé pour la mémoire (`--js-flags=--optimize-for-size`) : YouTube passe de ~404 à ~343 Mo (jeu de travail privé, comme le Gestionnaire des tâches).
+- Mode éco : mode « appareil modeste » du moteur, 3 processus de rendu au plus, pas de cache précédent/suivant : ~290 Mo sur YouTube.
+- Fenêtre réduite : tous les onglets passent en mémoire réduite.
 - Compteur mémoire en direct (processus Flux + WebView2) dans la barre.
 
 ## Recherche rapide
