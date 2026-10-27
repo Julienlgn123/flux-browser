@@ -25,7 +25,8 @@ use tao::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy},
-    window::{Theme, Window, WindowBuilder},
+    platform::windows::IconExtWindows,
+    window::{Icon, Theme, Window, WindowBuilder},
 };
 use wry::{
     dpi::{LogicalPosition, LogicalSize as WryLogicalSize},
@@ -627,6 +628,7 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("Flux")
+        .with_window_icon(Icon::from_resource(1, None).ok())
         .with_inner_size(LogicalSize::new(1280.0, 820.0))
         .with_min_inner_size(LogicalSize::new(480.0, 320.0))
         .with_theme(Some(Theme::Dark))

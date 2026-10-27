@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" width="96" alt="Flux">
+
 # Flux
 
 Navigateur Windows ultra-léger basé sur Chromium (moteur WebView2 d'Edge, déjà installé sur Windows).
